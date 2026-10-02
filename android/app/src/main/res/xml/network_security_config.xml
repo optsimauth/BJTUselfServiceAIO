@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      教务门户里的各个模块混着 HTTP 和 HTTPS：mis.bjtu.edu.cn 是 HTTPS，
+      但 bksycenter.bjtu.edu.cn/oauth2.ashx、ic.bjtu.edu.cn 之类还是 HTTP。
+      Android 9+ 默认禁明文流量，之前只白名单了两个 IP，结果点模块就报
+      net::ERR_CLEARTEXT_NOT_PERMITTED。
+
+      与其每接一个老系统就加一条域名再发一版，直接放开明文：
+      校内部署、校园网内访问，收益远大于风险。
+    -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
