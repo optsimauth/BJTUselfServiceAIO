@@ -33,7 +33,7 @@ class ExamRepository {
 
   Future<PendingSync> prepareSync() async {
     final parsed = ExamParser.parse(await _api.fetchExamScheduleRaw());
-    final remote = [...parsed, if (MockList.exam) ...MockList.exams];
+    final remote = [...parsed, if (MockList.enabled) ...MockList.exams];
     final changes = _syncManager.detectChanges(
       remote: remote,
       local: await _localStore.getAll(),

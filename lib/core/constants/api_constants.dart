@@ -15,9 +15,13 @@ abstract final class ApiConstants {
   static const String classroomCapacityUrl =
       '$classroomCapacityHost/api/classnum/';
 
-  // ---- 更新检查 ----
+  // ---- GitHub ----
   static const String githubLatestReleaseUrl =
       'https://api.github.com/repos/HFDLYS/BJTUselfService/releases/latest';
+
+  /// 仓库元信息（Star / Fork / Issue 数）。
+  static String githubRepoUrl(String repository) =>
+      'https://api.github.com/repos/$repository';
 
   // ---- CAS / SSO（验证码就挂在这条链上）----
   static const String ssoUrl = '$misHost/auth/sso/?next=/';

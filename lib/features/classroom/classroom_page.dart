@@ -6,7 +6,6 @@ import '../../data/models/classroom/classroom_model.dart';
 import '../../data/repositories/classroom_repository.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
-import '../../shared/widgets/login_required.dart';
 import '../course/lesson_period.dart';
 import 'classroom_controller.dart';
 import 'classroom_room_view.dart';
@@ -80,18 +79,16 @@ class _ClassroomPageState extends State<ClassroomPage> {
           ),
         ],
       ),
-      body: LoginRequired(
-        builder: (context) => ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) => AsyncView<ClassroomWeekStatus>(
-            state: _controller.statusState,
-            onRetry: _controller.load,
-            loadingMessage: '正在查教室占用…',
-            isEmpty: (status) => status.rooms.isEmpty,
-            emptyBuilder: (_) =>
-                EmptyClassroomView(buildingName: widget.building.name),
-            builder: (context, _) => _ClassroomBody(controller: _controller),
-          ),
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => AsyncView<ClassroomWeekStatus>(
+          state: _controller.statusState,
+          onRetry: _controller.load,
+          loadingMessage: '正在查教室占用…',
+          isEmpty: (status) => status.rooms.isEmpty,
+          emptyBuilder: (_) =>
+              EmptyClassroomView(buildingName: widget.building.name),
+          builder: (context, _) => _ClassroomBody(controller: _controller),
         ),
       ),
     );

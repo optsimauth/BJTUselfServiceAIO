@@ -196,7 +196,7 @@ class CourseRepository {
     final fetched = await _fetchSemesterOrNull(
       isCurrentSemester: isCurrentSemester,
     );
-    if (!MockList.course) return fetched;
+    if (!MockList.enabled) return fetched;
     return [
       ...fetched,
       ...MockList.courses.where(

@@ -17,6 +17,7 @@ import '../data/remote/api/courseware_api.dart';
 import '../data/remote/api/exam_api.dart';
 import '../data/remote/api/grade_api.dart';
 import '../data/remote/api/homework_api.dart';
+import '../data/remote/api/github_api.dart';
 import '../data/remote/api/update_api.dart';
 import '../data/remote/platform_session.dart';
 import '../data/repositories/account_repository.dart';
@@ -25,6 +26,7 @@ import '../data/repositories/course_repository.dart';
 import '../data/repositories/courseware_repository.dart';
 import '../data/repositories/exam_repository.dart';
 import '../data/repositories/grade_repository.dart';
+import '../data/repositories/github_repository.dart';
 import '../data/repositories/homework_repository.dart';
 import '../data/repositories/platform_course_repository.dart';
 import '../data/repositories/sync_coordinator.dart';
@@ -60,6 +62,7 @@ class ServiceLocator {
     required this.downloadService,
     required this.filePickerService,
     required this.updateService,
+    required this.githubRepository,
     required this.widgetService,
     required this.accountRepository,
     required this.courseRepository,
@@ -95,6 +98,7 @@ class ServiceLocator {
   final DownloadService downloadService;
   final FilePickerService filePickerService;
   final UpdateService updateService;
+  final GithubRepository githubRepository;
   final CourseScheduleWidgetService widgetService;
 
   final AccountRepository accountRepository;
@@ -157,6 +161,10 @@ class ServiceLocator {
     );
     final widgetService = CourseScheduleWidgetService(
       platformService: platformService,
+    );
+    final githubRepository = GithubRepository(
+      api: GithubApi(requestManager),
+      preferences: preferences,
     );
 
     // 课程平台这一套（会话 -> 课程清单 -> 作业/课件）共用一份 CourseApi 和会话，
@@ -268,6 +276,7 @@ class ServiceLocator {
       downloadService: downloadService,
       filePickerService: filePickerService,
       updateService: updateService,
+      githubRepository: githubRepository,
       widgetService: widgetService,
       accountRepository: accountRepository,
       courseRepository: courseRepository,

@@ -104,6 +104,37 @@ void main() {
     expect(result.details.single.fields.single.changed, isTrue);
   });
 
+  test('远端返回空列表时不判删（登录失效页会被解析成空表格）', () {
+    const local = [_Item('a'), _Item('b'), _Item('c')];
+
+    final changes = _manager(_MemoryStore(local))
+        .detectChanges(remote: const [], local: local);
+
+    expect(changes, isEmpty);
+    expect(SyncResult.fromChanges(SyncModule.exam, changes).deleted, 0);
+  });
+
+  test('远端非空时删除照常生效', () {
+    const local = [_Item('a'), _Item('gone')];
+    const remote = [_Item('a'), _Item('b')];
+
+    final changes = _manager(_MemoryStore(local))
+        .detectChanges(remote: remote, local: local);
+
+    expect(SyncResult.fromChanges(SyncModule.exam, changes).deleted, 1);
+  });
+
+  test('远端为空且本地也为空时不产生任何写入', () async {
+    final store = _MemoryStore(const []);
+    final manager = _manager(store);
+
+    await manager.apply(
+      manager.detectChanges(remote: const [], local: const []),
+    );
+
+    expect(store.rows, isEmpty);
+  });
+
   test('落库时新增走 upsert、删除走 remove', () async {
     final store = _MemoryStore(const [_Item('gone')]);
     final manager = _manager(store);

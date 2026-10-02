@@ -85,7 +85,7 @@ class CoursewareRepository {
     } catch (_) {
       courses = const [];
     }
-    if (courses.isEmpty && !MockList.courseware) {
+    if (courses.isEmpty) {
       throw StateError('没拿到本学期课程');
     }
 
@@ -110,7 +110,7 @@ class CoursewareRepository {
         ),
       );
     }
-    if (MockList.courseware) {
+    if (MockList.enabled) {
       roots.addAll(MockList.coursewares);
     }
     if (roots.isEmpty) {

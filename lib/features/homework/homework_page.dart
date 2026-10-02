@@ -11,7 +11,6 @@ import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
 import '../../shared/widgets/dialog/app_dialog.dart';
 import '../../shared/widgets/error_text.dart';
-import '../../shared/widgets/login_required.dart';
 import '../../shared/widgets/tinted_badge.dart';
 import 'homework_controller.dart';
 import 'homework_timeline.dart';
@@ -104,32 +103,30 @@ class _HomeworkPageState extends State<HomeworkPage> {
           ),
         ],
       ),
-      body: LoginRequired(
-        builder: (context) => ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) => Column(
-            children: [
-              _HomeworkFilterBar(
-                controller: _controller,
-                onPickCourse: _showCourseSheet,
-              ),
-              Expanded(
-                child: AsyncView<List<Homework>>(
-                  state: _controller.state,
-                  onRetry: _controller.refresh,
-                  loadingMessage: '正在同步作业…',
-                  isEmpty: (_) => _controller.totalCount() == 0,
-                  emptyBuilder: (_) => const EmptyHomeworkView(),
-                  builder: (context, _) => _HomeworkBody(
-                    controller: _controller,
-                    now: _now,
-                    onRefresh: _controller.refresh,
-                    scrollController: _controller.listScrollController,
-                  ),
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => Column(
+          children: [
+            _HomeworkFilterBar(
+              controller: _controller,
+              onPickCourse: _showCourseSheet,
+            ),
+            Expanded(
+              child: AsyncView<List<Homework>>(
+                state: _controller.state,
+                onRetry: _controller.refresh,
+                loadingMessage: '正在同步作业…',
+                isEmpty: (_) => _controller.totalCount() == 0,
+                emptyBuilder: (_) => const EmptyHomeworkView(),
+                builder: (context, _) => _HomeworkBody(
+                  controller: _controller,
+                  now: _now,
+                  onRefresh: _controller.refresh,
+                  scrollController: _controller.listScrollController,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -9,6 +9,7 @@ import 'package:bjtuselfserviceaio/data/models/classroom/classroom_model.dart';
 import 'package:bjtuselfserviceaio/features/email/email_page.dart';
 import 'package:bjtuselfserviceaio/features/exam/exam_page.dart';
 import 'package:bjtuselfserviceaio/features/grade/grade_page.dart';
+import 'package:bjtuselfserviceaio/features/github/star_page.dart';
 import 'package:bjtuselfserviceaio/features/home/home_page.dart';
 import 'package:bjtuselfserviceaio/features/homework/homework_page.dart';
 import 'package:bjtuselfserviceaio/features/login/login_page.dart';
@@ -45,6 +46,9 @@ abstract final class AppRoutes {
 
   /// 日志页，没有主导航入口，只从设置页进。
   static const String logs = '/logs';
+
+  /// 项目 Star 变化，只从设置页进。
+  static const String stars = '/stars';
 
   /// 教室占用课表。路径参数是教务 `jxlh` 的数字 ID，不是中文楼名 ——
   /// 中文字符进路径要转义，深链和网页端都容易对不上。
@@ -160,6 +164,10 @@ GoRouter createAppRouter(ServiceLocator locator) {
       GoRoute(
         path: AppRoutes.logs,
         builder: (context, state) => const LogsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.stars,
+        builder: (context, state) => const StarPage(),
       ),
     ],
   );

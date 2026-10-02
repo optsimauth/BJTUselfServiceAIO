@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import '../models/course/course_model.dart';
 import '../models/course/platform_course.dart';
 import '../models/courseware/courseware_model.dart';
@@ -16,9 +14,14 @@ import '../models/homework/homework_model.dart';
 /// 每个模块都造了 10 条左右 —— 够撑满列表，排序 / 筛选 / 分组都能真的跑一遍，
 /// 不然「只有一条数据」的页面和真实使用是两回事。
 abstract final class MockList {
+  /// **总开关。改这一个值，五个模块的 mock 全部关掉。**
+  ///
+  /// mock 数据只有一个用途：开关为 true 时，在仓库里和网络结果合并。
+  /// 除了合并，代码里任何地方都不该再出现 mock。
+  static const bool enabled = false;
+
   // ---- 成绩 ----
-  static const bool grade = true;
-  static const List<Grade> gradePool = [
+  static const List<Grade> grades = [
     Grade(
       courseName: '【Mock】高等数学(上)',
       courseTeacher: '张启明',
@@ -112,8 +115,7 @@ abstract final class MockList {
   ];
 
   // ---- 课表 ----
-  static const bool course = false;
-  static const List<Course> coursePool = [
+  static const List<Course> courses = [
     Course(
       courseId: 'mock-1001',
       name: '【Mock】高等数学(上)',
@@ -229,10 +231,9 @@ abstract final class MockList {
   ];
 
   // ---- 考试 ----
-  static const bool exam = true;
 
   /// 考试倒计时依赖「今天」，所以这里用相对日期而不是写死的年月日。
-  static final List<ExamSchedule> examPool = [
+  static final List<ExamSchedule> exams = [
     ExamSchedule(
       examType: '期末',
       courseName: '【Mock】高等数学(上)',
@@ -306,8 +307,7 @@ abstract final class MockList {
   ];
 
   // ---- 作业 ----
-  static const bool homework = true;
-  static final List<Homework> homeworkPool = [
+  static final List<Homework> homeworks = [
     Homework(
       upId: 900001,
       courseId: 9001,
@@ -458,7 +458,6 @@ abstract final class MockList {
 
   /// 课件走的是整棵资源树：不落库、只缓存成一份 JSON，所以 mock 直接造一棵树，
   /// 在 `refreshTree` 里挂在真实根节点后面。
-  static const bool courseware = true;
 
   static final PlatformCourse _cwMath = PlatformCourse(
     id: 9001,
@@ -520,7 +519,7 @@ abstract final class MockList {
     semesterCode: '2025-2026-1',
   );
 
-  static final List<CoursewareNode> coursewarePool = [
+  static final List<CoursewareNode> coursewares = [
     _root(_cwMath, [
       _bag('9101', '第一章 极限与连续', _cwMath, [
         _file('91011', '1.1 序列极限.mp4', 'mp4', '48.2 MB', _cwMath, -21),
@@ -643,136 +642,5 @@ abstract final class MockList {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${time.year}-${two(time.month)}-${two(time.day)} '
         '${two(hour)}:${two(minute)}';
-  }
-
-
-
-  static final Random _random = Random();
-
-  /// 随机改值用的候选池。太小会出现「挑不出不同于当前值的选项」。
-  static const List<String> _scores = [
-    '96', '92', '88', '85', '79', '72', '68', '优', '良', '中', '及格', '缓考',
-  ];
-  static const List<String> _teachers = ['张启明', '李文静', '王振华', '陈立群', '赵天成'];
-  static const List<String> _places = [
-    '教一201', '教二305', '教二501', '教三210', '理学楼404', '外语馆201', '文科楼305',
-  ];
-  static const List<String> _examStatuses = ['正常', '正常', '正常', '缓考', '取消'];
-  static const List<String> _sizes = [
-    '218 KB', '740 KB', '1.2 MB', '2.6 MB', '6.3 MB', '12.8 MB', '48.2 MB',
-  ];
-
-  // ---- 每次登录重掷 ----
-
-  /// 本次会话的 mock。null = 还没掷。
-  static List<Grade>? _grades;
-  static List<Course>? _courses;
-  static List<ExamSchedule>? _exams;
-  static List<Homework>? _homeworks;
-  static List<CoursewareNode>? _coursewares;
-
-  /// 每次登录调一次（`SyncCoordinator.syncAll`）：把上一轮掷的结果丢掉，
-  /// 下次读取时重新掷 —— 于是每次登录的 mock 都不一样。
-  static void beginSession() {
-    _grades = null;
-    _courses = null;
-    _exams = null;
-    _homeworks = null;
-    _coursewares = null;
-  }
-
-  static List<Grade> get grades => _grades ??= _roll(gradePool, _jitterGrade);
-  static List<Course> get courses => _courses ??= _roll(coursePool, _jitterCourse);
-  static List<ExamSchedule> get exams => _exams ??= _roll(examPool, _jitterExam);
-  static List<Homework> get homeworks => _homeworks ??= _roll(homeworkPool, _jitterHomework);
-  static List<CoursewareNode> get coursewares =>
-      _coursewares ??= _roll(coursewarePool, _jitterCourseware);
-
-  /// 随机取一半到全部，并逐条改值。
-  ///
-  /// **身份键不动**：成绩是课名、考试是「类型+课名」、课表是「课程+格子+周次」、
-  /// 作业是「课程+upId」。身份不变才会在下次同步里被认成「变更 1」；
-  /// 身份一变就成了「新增 1 + 删除 1」，变更提示那条路径根本走不到。
-  static List<T> _roll<T>(List<T> pool, T Function(T) jitter) {
-    // 池子第一条**永远保留**：这样每次登录至少有一条记录和上次是同一个身份键、
-    // 只是值变了，首页必定报出「变更 1」。剩下的随机取，随时会少掉几门课 ——
-    // 那几条会在下次同步里变成「删除」，正好把删除路径也走一遍。
-    final rest = [...pool.skip(1)]..shuffle(_random);
-    final keep = _random.nextInt(rest.length + 1);
-    return [pool.first, ...rest.take(keep)].map(jitter).toList();
-  }
-
-  static Grade _jitterGrade(Grade item) => item.copyWith(
-        courseScore: _other(_scores, item.courseScore),
-        courseTeacher: _other(_teachers, item.courseTeacher),
-      );
-
-  static Course _jitterCourse(Course item) => item.copyWith(
-        place: _other(_places, item.place),
-        teacher: _other(_teachers, item.teacher),
-      );
-
-  static ExamSchedule _jitterExam(ExamSchedule item) => item.copyWith(
-        examTimeAndPlace: _reschedule(item.examTimeAndPlace),
-        examStatus: _other(_examStatuses, item.examStatus),
-      );
-
-  /// 提交状态翻转必改值，所以每次登录至少能看到一条「变更」。
-  static Homework _jitterHomework(Homework item) {
-    final wasSubmitted = item.subStatus == Homework.submittedStatus;
-    return item.copyWith(
-      subStatus: wasSubmitted ? '未提交' : Homework.submittedStatus,
-      score: wasSubmitted ? '' : _other(_scores, item.score),
-      scoreId: wasSubmitted ? 0 : 1,
-      endTime: _reschedule(item.endTime),
-    );
-  }
-
-  /// 课件页真正渲染的是 name / extension / sizeText / teacherName，
-  /// `downloadCount` 和 `updatedAt` 根本不显示 —— 只随机那两个等于没随机。
-  /// 所以这里随机的是 `sizeText`（必定变，页面上看得见）和「已下载」状态。
-  static CoursewareNode _jitterCourseware(CoursewareNode node) => node.copyWith(
-        children: _jitterChildren(node.children),
-        sizeText: node.sizeText.isEmpty ? null : _other(_sizes, node.sizeText),
-        downloadCount: node.canDownload
-            ? node.downloadCount + 1 + _random.nextInt(20)
-            : null,
-        // 三分之一的文件随机标成「已下载」，验证「还剩 N 个」和下载态图标。
-        downloadedPath: node.canDownload && _random.nextInt(3) == 0
-            ? 'mock://${node.id}'
-            : null,
-      );
-
-  static List<CoursewareNode> _jitterChildren(List<CoursewareNode> nodes) => [
-        for (final node in nodes) _jitterCourseware(node),
-      ];
-
-  /// 从 `pool` 里挑一个**不同于** `current` 的值。挑不到就原样返回。
-  ///
-  /// 故意不给「可能就是原来那个值」留口子：否则某次登录会随机出「零变化」，
-  /// 白等一轮同步才发现什么都没变。
-  static T _other<T>(List<T> pool, T current) {
-    final rest = pool.where((value) => value != current).toList();
-    return rest.isEmpty ? current : rest[_random.nextInt(rest.length)];
-  }
-
-  /// 把 `yyyy-MM-dd ...` 挪到另一个随机日期。认不出日期（'待定'）就原样返回。
-  static String _reschedule(String text) {
-    final head = text.length >= 10 ? text.substring(0, 10) : '';
-    final current = DateTime.tryParse(head);
-    if (current == null) return text;
-    // 最多试 8 次；万一都撞上（比如池子里只剩一天），退到一个远日��而不是死循环。
-    for (var i = 0; i < 8; i++) {
-      final next = DateTime.now().add(Duration(days: _random.nextInt(61) - 30));
-      if (_dayOf(next) != _dayOf(current)) {
-        return _dayOf(next) + text.substring(10);
-      }
-    }
-    return _dayOf(current.add(const Duration(days: 31))) + text.substring(10);
-  }
-
-  static String _dayOf(DateTime time) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${time.year}-${two(time.month)}-${two(time.day)}';
   }
 }

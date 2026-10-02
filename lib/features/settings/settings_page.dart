@@ -256,6 +256,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   : null,
               onTap: _checkingUpdate ? null : _checkForUpdate,
             ),
+            ListTile(
+              leading: const Icon(Icons.star_outline, size: 22),
+              title: const Text('项目 Star'),
+              subtitle: const Text('看看仓库最近涨了多少'),
+              onTap: () => context.push(AppRoutes.stars),
+            ),
             ListTile(title: const Text('关于'), onTap: _showAbout),
             ListTile(
               title: const Text('退出登录'),

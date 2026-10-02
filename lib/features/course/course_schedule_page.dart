@@ -11,7 +11,6 @@ import '../../shared/theme/colors.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
 import '../../shared/widgets/dialog/app_dialog.dart';
-import '../../shared/widgets/login_required.dart';
 import 'course_controller.dart';
 import 'schedule_ics.dart';
 import 'schedule_term.dart';
@@ -86,40 +85,38 @@ class _CourseSchedulePageState extends State<CourseSchedulePage> {
           ),
         ],
       ),
-      body: LoginRequired(
-        builder: (context) => ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) => Column(
-            children: [
-              _ScheduleToolbar(controller: _controller),
-              Expanded(
-                child: AsyncView<List<Course>>(
-                  state: _controller.state,
-                  onRetry: _controller.refresh,
-                  loadingMessage: '正在同步课表…',
-                  builder: (context, _) => Column(
-                    children: [
-                      Expanded(
-                        child: RefreshIndicator(
-                          onRefresh: _controller.refresh,
-                          child: ScheduleCalendar(
-                            board: _controller.board,
-                            currentWeek: _controller.currentWeek,
-                            selectedWeek: _controller.selectedWeek,
-                            onCourseTap: _showCourseDetail,
-                            emptyBuilder: (context) => EmptyScheduleView(
-                              onPickAnotherWeek: _controller.resetWeek,
-                            ),
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => Column(
+          children: [
+            _ScheduleToolbar(controller: _controller),
+            Expanded(
+              child: AsyncView<List<Course>>(
+                state: _controller.state,
+                onRetry: _controller.refresh,
+                loadingMessage: '正在同步课表…',
+                builder: (context, _) => Column(
+                  children: [
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: _controller.refresh,
+                        child: ScheduleCalendar(
+                          board: _controller.board,
+                          currentWeek: _controller.currentWeek,
+                          selectedWeek: _controller.selectedWeek,
+                          onCourseTap: _showCourseDetail,
+                          emptyBuilder: (context) => EmptyScheduleView(
+                            onPickAnotherWeek: _controller.resetWeek,
                           ),
                         ),
                       ),
-                      _UnplacedHint(courses: _controller.unplacedCourses),
-                    ],
-                  ),
+                    ),
+                    _UnplacedHint(courses: _controller.unplacedCourses),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -55,7 +55,16 @@ class DataSyncManager<T> {
         previousItems.add(previous);
       }
     }
-    final deleted = detectDeleted
+    // 远端返回空时**不判删**。
+    //
+    // 「这个范围确实一条都没有了」和「登录失效页被当成空表格解析了」在这一层
+    // 长得一模一样：都是 HTTP 200 + 空列表。教务的登录页、超时后的空 body、
+    // 表格改版后的新结构，全都会走到这里。
+    //
+    // 两个方向的代价差得很远：误删之后本地数据就没了，只能退出登录重新登录
+    // 才有；漏删只是本地多留一份旧数据，下一次同步自己就正过来了。
+    // 所以这个方向上宁可漏，不可错。
+    final deleted = detectDeleted && remote.isNotEmpty
         ? local.where((item) => !remoteKeys.contains(identity(item))).toList()
         : <T>[];
     return [

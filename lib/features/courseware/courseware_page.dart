@@ -10,7 +10,6 @@ import '../../shared/theme/typography.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
 import '../../shared/widgets/dialog/app_dialog.dart';
-import '../../shared/widgets/login_required.dart';
 import 'courseware_controller.dart';
 import 'courseware_tree.dart';
 
@@ -106,24 +105,22 @@ class _CoursewarePageState extends State<CoursewarePage> {
           ),
         ],
       ),
-      body: LoginRequired(
-        builder: (context) => ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) => AsyncView<List<CoursewareNode>>(
-            state: _controller.state,
-            onRetry: _controller.refresh,
-            loadingMessage: '正在拉取课程资源…',
-            isEmpty: (_) => _controller.isEmpty,
-            emptyBuilder: (_) => const EmptyCoursewareView(),
-            builder: (context, _) => _CoursewareBody(
-              controller: _controller,
-              box: _searchBox,
-              anchorOf: anchorOf,
-              onDownloadFile: _downloadFile,
-              onDownloadAll: _downloadAll,
-              onDownloadCalendar: _downloadCalendar,
-              onRevealFile: _revealFile,
-            ),
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => AsyncView<List<CoursewareNode>>(
+          state: _controller.state,
+          onRetry: _controller.refresh,
+          loadingMessage: '正在拉取课程资源…',
+          isEmpty: (_) => _controller.isEmpty,
+          emptyBuilder: (_) => const EmptyCoursewareView(),
+          builder: (context, _) => _CoursewareBody(
+            controller: _controller,
+            box: _searchBox,
+            anchorOf: anchorOf,
+            onDownloadFile: _downloadFile,
+            onDownloadAll: _downloadAll,
+            onDownloadCalendar: _downloadCalendar,
+            onRevealFile: _revealFile,
           ),
         ),
       ),

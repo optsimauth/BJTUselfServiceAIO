@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../app/app_router.dart';
+import '../../app/service_locator.dart';
 import '../../core/model/async_state.dart';
+import '../../data/repositories/account_repository.dart';
+import 'buttons/app_buttons.dart';
 import 'error_text.dart';
 import 'loading/app_loading.dart';
 
@@ -74,12 +79,41 @@ class _ErrorView extends StatelessWidget {
 /// 只有「暂无数据」三个字的话，用户既不知道是没数据、还是筛选太严、
 /// 还是登录掉了，也不知道下一步该点什么。各页面能用 [AsyncView.emptyBuilder]
 /// 换成自己的话更好，这里只保证「不出现光秃秃一句话的页面」。
+///
+/// 没登录且本地确实没数据时改成登录入口：本地有的数据由页面直接显示，
+/// 不该被登录态挡住（挡住等于白存那一库）。
 class _EmptyView extends StatelessWidget {
   const _EmptyView();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final session = ServiceScope.of(context).accountRepository.sessionState;
+    if (session.value != SessionState.loggedIn) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline, size: 40),
+            const SizedBox(height: 12),
+            Text('登录后查看', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              '本地还没有这部分数据',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            PrimaryButton(
+              label: '去登录',
+              icon: Icons.login,
+              onPressed: () => context.push(AppRoutes.login),
+            ),
+          ],
+        ),
+      );
+    }
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),

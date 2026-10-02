@@ -62,7 +62,7 @@ class GradeRepository {
     final merged = sources.length == 1
         ? sources.first
         : GradeParser.merge(sources[0], sources[1]);
-    final remote = [...merged, if (MockList.grade) ...MockList.grades];
+    final remote = [...merged, if (MockList.enabled) ...MockList.grades];
     final changes = _syncManager.detectChanges(
       remote: remote,
       local: await _localStore.getAll(),

@@ -2,7 +2,7 @@
 abstract final class AppConstants {
   static const String appName = '交大自由行';
   static const String appSlogan = '让校园生活更便捷';
-  static const String githubRepository = 'HFDLYS/BJTUselfService';
+  static const String githubRepository = 'optsimauth/BJTUselfServiceAIO';
 
   /// 所有下载统一落在这个子目录下：课件、成绩单、校历、教学日历、课表 .ics。
   /// 目的只有一个 —— 用户找得到、删得掉，也不会和自己下的文件混在一起。
@@ -37,6 +37,8 @@ abstract final class StorageKeys {
   static const String coursewareJson = 'courseware_json';
   static const String gradeSelections = 'grade_selections_by_student';
   static const String cookies = 'persisted_cookies';
+  /// Star 变化历史，JSON 数组，元素是 `{t: 毫秒时间戳, v: 星数}`。
+  static const String githubStarHistory = 'github_star_history';
 
   /// 用户在设置里选的下载根目录（绝对路径）。空串 = 用系统默认下载目录。
   static const String downloadDirectory = 'download_directory';

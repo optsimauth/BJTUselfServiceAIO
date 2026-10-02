@@ -10,13 +10,13 @@ import '../../data/models/course/course_model.dart';
 import '../../data/repositories/account_repository.dart';
 import '../../core/state/sync_module.dart';
 import '../../core/state/sync_result.dart';
-import '../../data/models/course/schedule_position.dart';
 import '../../shared/theme/colors.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/refresh_icon.dart';
 import '../course/lesson_period.dart';
 import 'change_details_dialog.dart';
 import 'home_calendar.dart';
+import 'home_event_dialog.dart';
 import 'home_controller.dart';
 import '../../shared/theme/spacing.dart';
 import '../../shared/theme/typography.dart';
@@ -91,7 +91,8 @@ class _HomePageState extends State<HomePage> {
                       // 顺序有讲究：先给「现在该去哪」，再给日历。
                       // 日历要挑一天才看得见东西，而下一节课不用点。
                       _NextClassCard(summary: summary),
-                      const SizedBox(height: 12),
+                      if (_NextClassCard.pick(summary, DateTime.now()) != null)
+                        const SizedBox(height: 12),
                       _HomeCalendar(summary: summary),
                       const SizedBox(height: 16),
                       _ChangeBanner(controller: _controller),
@@ -140,35 +141,13 @@ class _NextClassCard extends StatelessWidget {
     final target = pick(summary, now);
     final scheme = Theme.of(context).colorScheme;
 
-    if (target == null) {
-      return _Shell(
-        scheme: scheme,
-        child: Row(
-          children: [
-            Icon(
-              Icons.free_breakfast_outlined,
-              size: 20,
-              color: scheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                summary.todayCourses.isEmpty ? '今天没有课' : '今天的课上完了',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    // 今天没课/课上完了都不占地方：日历下面自己会说清楚，
+    // 顶部再挂一句「今天没有课」只是重复。
+    if (target == null) return const SizedBox.shrink();
 
     final course = target.course;
     final color = AppColors.forCourse(course.courseId);
-    final period = SchedulePeriods.bySection(course.section);
-    final time = period != null && period.start.isNotEmpty
-        ? period.timeRange
-        : course.time;
-    final countdown = _countdown(course.section, now);
+    final time = _timeRangeOf(course);
 
     return _Shell(
       scheme: scheme,
@@ -201,6 +180,7 @@ class _NextClassCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   [
+                    if (target.ongoing) '正在上',
                     if (course.place.isNotEmpty) course.place,
                     if (course.teacher.isNotEmpty) course.teacher,
                     if (time.isNotEmpty) time,
@@ -213,53 +193,9 @@ class _NextClassCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: target.ongoing
-                      ? color
-                      : scheme.surfaceContainerHighest,
-                  borderRadius: AppRadius.sheet,
-                ),
-                child: Text(
-                  target.ongoing ? '正在上' : '第 ${course.section} 节',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: target.ongoing
-                        ? AppColors.onCourse(color)
-                        : scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (countdown != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  countdown,
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ],
-            ],
-          ),
         ],
       ),
     );
-  }
-
-  /// 距离下一节还有多久。两小时以外不写 —— 「还有 187 分钟」没人看。
-  static String? _countdown(int section, DateTime now) {
-    final period = SchedulePeriods.bySection(section);
-    if (period == null || period.start.isEmpty) return null;
-    final minutes = period.minutesUntilStart(SchedulePosition.minuteOfDay(now));
-    if (minutes <= 0 || minutes > 120) return null;
-    return minutes < 60 ? '$minutes 分钟后' : '${minutes ~/ 60} 小时后';
   }
 
   Widget _Shell({
@@ -391,6 +327,9 @@ class _HomeCalendarState extends State<_HomeCalendar> {
     final events = buildHomeCalendarEvents(
       homework: widget.summary.allHomework,
       exams: widget.summary.allExams,
+      courses: widget.summary.allCourses,
+      calendar: widget.summary.calendar,
+      currentWeek: widget.summary.currentWeek,
     );
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -477,6 +416,7 @@ class _HomeCalendarState extends State<_HomeCalendar> {
             const SizedBox(height: 12),
             _SelectedDayAgenda(
               summary: widget.summary,
+              events: events,
               selectedDay: _selectedDay ?? DateTime.now(),
             ),
           ],
@@ -494,55 +434,41 @@ class _HomeCalendarState extends State<_HomeCalendar> {
 }
 
 class _SelectedDayAgenda extends StatelessWidget {
-  const _SelectedDayAgenda({required this.summary, required this.selectedDay});
+  const _SelectedDayAgenda({
+    required this.summary,
+    required this.events,
+    required this.selectedDay,
+  });
 
   final HomeSummary summary;
+
+  /// 日历已经展开好的事件表。这里只做一次「取当天 + 排序」。
+  final Map<DateTime, List<HomeCalendarEvent>> events;
   final DateTime selectedDay;
 
   @override
   Widget build(BuildContext context) {
-    final courses = _coursesForSelectedDay();
-    final events = _eventsForSelectedDay();
+    // 课程 / 作业 / 考试走同一条渲染路径：类型、图标、颜色都由
+    // HomeCalendarEventType 决定，以后加新类型不用再动这个列表。
+    final dayEvents = [...eventsOn(events, selectedDay)]
+      ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AgendaHeading(day: selectedDay, week: _selectedWeek()),
-        if (courses.isNotEmpty) const _AgendaSectionTitle(title: '课程'),
-        for (final course in courses)
-          _AgendaTile(
-            color: Theme.of(context).colorScheme.primary,
-            icon: Icons.menu_book_outlined,
-            title: course.name,
-            subtitle: '${course.place} · ${course.time}',
-          ),
-        for (final event in events)
+        for (final event in dayEvents)
           _AgendaTile(
             color: _eventColor(context, event.type),
             icon: _eventIcon(event.type),
             title:
                 '${event.typeLabel} · ${event.title.isEmpty ? '未命名' : event.title}',
             subtitle: _eventSubtitle(event),
+            onTap: () => showHomeEventDialog(context, event: event),
           ),
-        if (courses.isEmpty && events.isEmpty)
-          const _EmptyHint(text: '这一天没有课程、作业或考试'),
+        if (dayEvents.isEmpty) const _EmptyHint(text: '这一天没有课程、作业或考试'),
       ],
     );
   }
-
-  List<Course> _coursesForSelectedDay() =>
-      summary.allCourses
-          .where((course) => course.isCurrentSemester)
-          .where((course) => course.weekDay == selectedDay.weekday)
-          .toList()
-        ..sort((a, b) => a.section.compareTo(b.section));
-
-  List<HomeCalendarEvent> _eventsForSelectedDay() => eventsOn(
-    buildHomeCalendarEvents(
-      homework: summary.allHomework,
-      exams: summary.allExams,
-    ),
-    selectedDay,
-  );
 
   int? _selectedWeek() => weekNumberForDate(
     date: selectedDay,
@@ -554,6 +480,7 @@ class _SelectedDayAgenda extends StatelessWidget {
   static Color _eventColor(BuildContext context, HomeCalendarEventType type) {
     final scheme = Theme.of(context).colorScheme;
     return switch (type) {
+      HomeCalendarEventType.course => scheme.secondary,
       HomeCalendarEventType.homeworkStart => scheme.primary,
       HomeCalendarEventType.homeworkEnd => scheme.error,
       HomeCalendarEventType.exam => AppColors.exam(scheme),
@@ -561,17 +488,29 @@ class _SelectedDayAgenda extends StatelessWidget {
   }
 
   static IconData _eventIcon(HomeCalendarEventType type) => switch (type) {
+    HomeCalendarEventType.course => Icons.menu_book_outlined,
     HomeCalendarEventType.homeworkStart => Icons.play_circle_outline,
     HomeCalendarEventType.homeworkEnd => Icons.warning_amber_outlined,
     HomeCalendarEventType.exam => Icons.assignment_outlined,
   };
 
-  static String _eventSubtitle(HomeCalendarEvent event) =>
-      event.homework == null
-      ? event.exam?.examTimeAndPlace ?? ''
-      : event.type == HomeCalendarEventType.homeworkStart
-      ? '开放时间：${event.homework!.openDate}'
-      : '截止时间：${event.homework!.endTime}';
+  static String _eventSubtitle(HomeCalendarEvent event) {
+    final course = event.course;
+    if (course != null) {
+      return [
+        course.place.trim(),
+        _timeRangeOf(course),
+        course.time.trim(),
+      ].where((part) => part.isNotEmpty).join(' · ');
+    }
+    final homework = event.homework;
+    if (homework != null) {
+      return event.type == HomeCalendarEventType.homeworkStart
+          ? '开放时间：${homework.openDate}'
+          : '截止时间：${homework.endTime}';
+    }
+    return event.exam?.examTimeAndPlace ?? '';
+  }
 }
 
 class _AgendaHeading extends StatelessWidget {
@@ -592,24 +531,13 @@ class _AgendaHeading extends StatelessWidget {
   );
 }
 
-class _AgendaSectionTitle extends StatelessWidget {
-  const _AgendaSectionTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xs),
-    child: Text(title, style: Theme.of(context).textTheme.labelLarge),
-  );
-}
-
 class _AgendaTile extends StatelessWidget {
   const _AgendaTile({
     required this.color,
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.onTap,
   });
 
   final Color color;
@@ -617,11 +545,15 @@ class _AgendaTile extends StatelessWidget {
   final String title;
   final String subtitle;
 
+  /// 点开详情弹层。null = 纯展示，不可点。
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) => Card(
     margin: const EdgeInsets.only(bottom: AppSpacing.xs),
     child: ListTile(
       dense: true,
+      onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.xs,
@@ -635,8 +567,19 @@ class _AgendaTile extends StatelessWidget {
   );
 }
 
+/// 一节课的上课时段（21:00-21:50）。
+///
+/// Course.time 不一定是时间 —— 有些课程它装的是「1-16周」这种周次，
+/// 所以真正的钟点只能按节次去查作息表。
+String _timeRangeOf(Course course) {
+  final period = SchedulePeriods.bySection(course.section);
+  if (period != null && period.start.isNotEmpty) return period.timeRange;
+  return RegExp(r'^\d{1,2}:\d{2}').hasMatch(course.time) ? course.time : '';
+}
+
 Color _dotColor(HomeCalendarEventType type, ColorScheme scheme) =>
     switch (type) {
+      HomeCalendarEventType.course => scheme.secondary,
       HomeCalendarEventType.homeworkStart => scheme.primary,
       HomeCalendarEventType.homeworkEnd => scheme.error,
       HomeCalendarEventType.exam => AppColors.exam(scheme),
@@ -775,6 +718,7 @@ class _CalendarLegend extends StatelessWidget {
       spacing: 14,
       runSpacing: 6,
       children: [
+        _LegendItem(color: scheme.secondary, label: '课程'),
         _LegendItem(color: scheme.primary, label: '作业开始'),
         _LegendItem(color: scheme.error, label: '作业截止'),
         _LegendItem(color: AppColors.exam(scheme), label: '考试'),

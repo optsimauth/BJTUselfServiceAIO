@@ -58,7 +58,7 @@ class HomeworkRepository {
   /// 每门课、每种作业独立比较；请求失败的分片完全不参与删除。
   Future<PendingSync> prepareSync() async {
     final courses = await _courses();
-    if (courses.isEmpty && !MockList.homework) throw StateError('作业刷新失败：没有课程');
+    if (courses.isEmpty) throw StateError('作业刷新失败：没有课程');
     final headers = await _session.headers();
     final local = await _localStore.getAll();
     final changes = <DataChange<Homework>>[];
@@ -79,7 +79,7 @@ class HomeworkRepository {
         succeeded = true;
       }
     }
-    if (MockList.homework) {
+    if (MockList.enabled) {
       changes.addAll(_mockChanges(local));
       succeeded = true;
     }

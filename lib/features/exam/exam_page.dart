@@ -10,7 +10,6 @@ import '../../shared/theme/typography.dart';
 import '../../shared/widgets/tinted_badge.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
-import '../../shared/widgets/login_required.dart';
 import 'exam_controller.dart';
 import 'exam_timeline.dart';
 import '../../shared/theme/spacing.dart';
@@ -99,29 +98,27 @@ class _ExamPageState extends State<ExamPage> {
           ),
         ],
       ),
-      body: LoginRequired(
-        builder: (context) => ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) => Column(
-            children: [
-              _ExamFilterBar(controller: _controller),
-              Expanded(
-                child: AsyncView<List<ExamSchedule>>(
-                  state: _controller.state,
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => Column(
+          children: [
+            _ExamFilterBar(controller: _controller),
+            Expanded(
+              child: AsyncView<List<ExamSchedule>>(
+                state: _controller.state,
+                onRetry: _controller.refresh,
+                loadingMessage: '正在同步考试安排…',
+                isEmpty: (exams) => exams.isEmpty,
+                emptyBuilder: (_) => const EmptyExamView(),
+                builder: (context, _) => _ExamBody(
+                  controller: _controller,
+                  now: _now,
                   onRetry: _controller.refresh,
-                  loadingMessage: '正在同步考试安排…',
-                  isEmpty: (exams) => exams.isEmpty,
-                  emptyBuilder: (_) => const EmptyExamView(),
-                  builder: (context, _) => _ExamBody(
-                    controller: _controller,
-                    now: _now,
-                    onRetry: _controller.refresh,
-                    scrollController: _controller.scrollController,
-                  ),
+                  scrollController: _controller.scrollController,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

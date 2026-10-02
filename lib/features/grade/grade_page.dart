@@ -8,7 +8,6 @@ import '../../shared/widgets/buttons/app_buttons.dart';
 import '../../shared/widgets/cards/app_card.dart';
 import '../../shared/widgets/dialog/app_dialog.dart';
 import '../../shared/theme/colors.dart';
-import '../../shared/widgets/login_required.dart';
 import 'grade_controller.dart';
 import 'grade_math.dart';
 import 'grade_sort.dart';
@@ -148,36 +147,34 @@ class _GradePageState extends State<GradePage> {
           ),
         ],
       ),
-      body: LoginRequired(
-        builder: (context) => ListenableBuilder(
-          listenable: controller,
-          builder: (context, _) => Column(
-            children: [
-              _GradeActionRow(
-                controller: controller,
-                selectionMode: _selectionMode,
-                onToggleSelectionMode: () =>
-                    setState(() => _selectionMode = !_selectionMode),
-              ),
-              if (_selectionMode) _SelectionToolbar(controller: controller),
-              Expanded(
-                child: AsyncView<List<Grade>>(
-                  state: controller.state,
-                  onRetry: controller.refresh,
-                  loadingMessage: '正在同步成绩…',
-                  isEmpty: (grades) => grades.isEmpty,
-                  emptyBuilder: (_) =>
-                      _EmptyGradesView(onRefresh: controller.refresh),
-                  builder: (context, _) => _GradeListBody(
-                    controller: controller,
-                    scroll: controller.scrollController,
-                    selectionMode: _selectionMode,
-                    onClearFilter: controller.clearFilter,
-                  ),
+      body: ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) => Column(
+          children: [
+            _GradeActionRow(
+              controller: controller,
+              selectionMode: _selectionMode,
+              onToggleSelectionMode: () =>
+                  setState(() => _selectionMode = !_selectionMode),
+            ),
+            if (_selectionMode) _SelectionToolbar(controller: controller),
+            Expanded(
+              child: AsyncView<List<Grade>>(
+                state: controller.state,
+                onRetry: controller.refresh,
+                loadingMessage: '正在同步成绩…',
+                isEmpty: (grades) => grades.isEmpty,
+                emptyBuilder: (_) =>
+                    _EmptyGradesView(onRefresh: controller.refresh),
+                builder: (context, _) => _GradeListBody(
+                  controller: controller,
+                  scroll: controller.scrollController,
+                  selectionMode: _selectionMode,
+                  onClearFilter: controller.clearFilter,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       floatingActionButton: _showFab
