@@ -37,8 +37,8 @@ class ClassroomController extends ChangeNotifier {
   }) : _repository = repository,
        building = building,
        _clock = clock,
-       todayWeekday = ClassroomWeekStatus.weekdayIndexOf(now) + 1,
-       _weekday = ClassroomWeekStatus.weekdayIndexOf(now) + 1;
+       todayWeekday = ClassroomWeekStatus.weekdayIndexOf(now),
+       _weekday = ClassroomWeekStatus.weekdayIndexOf(now);
 
   final ClassroomRepository _repository;
   final ClassroomBuilding building;
@@ -96,8 +96,7 @@ class ClassroomController extends ChangeNotifier {
       ClassroomBuildings.peopleSourceNames.contains(building.name);
 
   /// 有效期那句话（两个日期都拿到才有）。
-  String? get effectivePeriod =>
-      _peopleState.valueOrNull?.effectivePeriodText;
+  String? get effectivePeriod => _peopleState.valueOrNull?.effectivePeriodText;
 
   bool get hasFilters => _filter.hasFilters;
 
