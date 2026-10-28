@@ -9,6 +9,7 @@ import 'email_controller.dart';
 import '../../data/models/email/email_models.dart';
 import 'email_widgets.dart';
 import '../../shared/theme/spacing.dart';
+import '../../shared/widgets/dialog/app_dialog.dart';
 import '../../shared/widgets/page_width.dart';
 
 class EmailPage extends StatefulWidget {
@@ -61,6 +62,8 @@ class _EmailPageState extends State<EmailPage> {
             message: _controller.message,
             loading: _opening,
             onReply: _startReply,
+            onDownloadAttachment: _downloadAttachment,
+            isDownloading: _controller.isDownloading,
           ),
           _EmailMode.compose => _MailboxCompose(
             draft: _controller.draft,
@@ -216,6 +219,21 @@ class _EmailPageState extends State<EmailPage> {
       setState(() => _mode = _EmailMode.list);
     } else {
       _showMessage('邮件发送失败，请检查网络后重试');
+    }
+  }
+
+  /// 下载附件。成功给保存路径，失败弹框 —— 附件是「点了就要有结果」的操作，
+  /// 失败只记日志等于用户白点一次。
+  Future<void> _downloadAttachment(MailAttachment file) async {
+    final message = _controller.message;
+    if (message == null) return;
+    try {
+      final savedPath = await _controller.downloadAttachment(message, file);
+      if (!mounted) return;
+      _showMessage('已保存到 $savedPath');
+    } catch (error) {
+      if (!mounted) return;
+      await AppDialog.error(context, error);
     }
   }
 
@@ -745,11 +763,15 @@ class _MailboxDetail extends StatelessWidget {
     required this.message,
     required this.loading,
     required this.onReply,
+    required this.onDownloadAttachment,
+    required this.isDownloading,
   });
 
   final MailMessage? message;
   final bool loading;
   final VoidCallback onReply;
+  final ValueChanged<MailAttachment> onDownloadAttachment;
+  final bool Function(MailAttachment) isDownloading;
 
   @override
   Widget build(BuildContext context) {
@@ -779,13 +801,24 @@ class _MailboxDetail extends StatelessWidget {
         if (mail.blocks.isEmpty) const Text('这封邮件没有可显示的正文'),
         if (mail.attachments.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Text('附件', style: Theme.of(context).textTheme.titleMedium),
+          Row(
+            children: [
+              Text('附件', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                '${mail.attachments.length} 个',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
           for (final file in mail.attachments)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.attach_file),
-              title: Text(file.name),
-              subtitle: Text(_fileMeta(file)),
+            _AttachmentRow(
+              file: file,
+              downloading: isDownloading(file),
+              onTap: () => onDownloadAttachment(file),
             ),
         ],
         const SizedBox(height: 16),
@@ -798,14 +831,93 @@ class _MailboxDetail extends StatelessWidget {
     );
   }
 
-  static String _fileMeta(MailAttachment file) {
-    final size = file.sizeBytes;
-    if (size == null || size <= 0) return file.contentType ?? '附件';
-    final label = size < 1024 * 1024
-        ? '${(size / 1024).toStringAsFixed(1)} KB'
-        : '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${file.contentType ?? '附件'} · $label';
+}
+
+/// 附件行。整行都是下载入口：图标小、手指大。
+///
+/// 下载中把右侧图标换成进度圈并关掉点击 —— 邮件附件动辄几十兆，中途再点
+/// 一次只会多排一条任务，用户看到的是「点了没反应」。
+class _AttachmentRow extends StatelessWidget {
+  const _AttachmentRow({
+    required this.file,
+    required this.downloading,
+    required this.onTap,
+  });
+
+  final MailAttachment file;
+  final bool downloading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    // 2 倍字号下名字和大小会挤成一列两三个字，这时只保名字，大小让位。
+    final large = MediaQuery.textScalerOf(context).scale(1) > 1.4;
+    return Semantics(
+      button: true,
+      label: '下载附件 ${file.name}',
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+        child: InkWell(
+          onTap: downloading ? null : onTap,
+          borderRadius: AppRadius.md,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.attach_file, color: scheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        file.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      if (!large) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          _attachmentMeta(file),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                if (downloading)
+                  const SizedBox(
+                    width: AppSpacing.xl,
+                    height: AppSpacing.xl,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  Icon(Icons.download_rounded, color: scheme.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
+}
+
+String _attachmentMeta(MailAttachment file) {
+  final size = file.sizeBytes;
+  if (size == null || size <= 0) return file.contentType ?? '附件';
+  final label = size < 1024 * 1024
+      ? '${(size / 1024).toStringAsFixed(1)} KB'
+      : '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+  return '${file.contentType ?? '附件'} · $label';
 }
 
 class _AddressLine extends StatelessWidget {

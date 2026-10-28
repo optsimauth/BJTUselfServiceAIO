@@ -191,7 +191,10 @@ class ServiceLocator {
         emailApi.invalidateSession();
         locator.gradeController.updateStudentId('');
         locator.emailController.dispose();
-        locator.emailController = EmailController(api: emailApi);
+        locator.emailController = EmailController(
+          api: emailApi,
+          downloadService: downloadService,
+        );
         locator.coursewareController.dispose();
         locator.coursewareController = CoursewareController(
           repository: locator.coursewareRepository,
@@ -235,7 +238,10 @@ class ServiceLocator {
     );
     final statusRepository = StatusRepository(api: StatusApi(requestManager));
 
-    final emailController = EmailController(api: emailApi);
+    final emailController = EmailController(
+      api: emailApi,
+      downloadService: downloadService,
+    );
 
     final syncCoordinator = SyncCoordinator(
       course: courseRepository,

@@ -110,6 +110,32 @@ class EmailApi {
     return _guard(() => MailParser.parseMessage(raw, id));
   }
 
+  /// 附件下载地址。
+  ///
+  /// 和 Android 版 `EmailRepository.downloadAttachment` 同一条通道：
+  /// `coremail/s?func=mbox:getMessageData&mode=download`。
+  ///
+  /// 服务端只认 sid + Cookie，所以地址必须用**当前**会话的 sid 现拼。存成常量
+  /// 的下场是 sid 过期后拿到一份「会话失效」的 HTML，被当成附件存到磁盘里。
+  Future<String> attachmentDownloadUrl({
+    required String mid,
+    required String partId,
+  }) async {
+    final sid = await _sessionId();
+    return Uri.parse(ApiConstants.mailDataUrl)
+        .replace(
+          queryParameters: {
+            'sid': sid,
+            'func': 'mbox:getMessageData',
+            'mode': 'download',
+            'mbox': '1',
+            'mid': mid,
+            'part': partId,
+          },
+        )
+        .toString();
+  }
+
   Future<MailComposeDraft> beginCompose({String? replyToMessageId}) async {
     final sid = await _sessionId();
     final raw = await _request.postFormUrlEncoded(

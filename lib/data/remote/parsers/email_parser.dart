@@ -199,15 +199,12 @@ abstract final class MailParser {
 
   static List<MailAttachment> _parseAttachments(Object? raw) => [
     for (final item in raw is List ? raw : const [])
-      if (_asString(_asMap(item)['name']).isNotEmpty ||
-          _asString(_asMap(item)['fileName']).isNotEmpty)
+      if (_attachmentName(_asMap(item)).isNotEmpty)
         MailAttachment(
           id: _asString(_asMap(item)['id']).isEmpty
               ? null
               : _asString(_asMap(item)['id']),
-          name: _asString(_asMap(item)['name']).isEmpty
-              ? _asString(_asMap(item)['fileName'])
-              : _asString(_asMap(item)['name']),
+          name: _attachmentName(_asMap(item)),
           sizeBytes:
               _asInt(_asMap(item)['size']) ?? _asInt(_asMap(item)['sizeBytes']),
           contentType: _asString(_asMap(item)['contentType']).isEmpty
@@ -215,6 +212,65 @@ abstract final class MailParser {
               : _asString(_asMap(item)['contentType']),
         ),
   ];
+
+  /// 附件名。Coremail 给的键是 `filename`（Android 版
+  /// `EmailRepository.parseAttachment` 读的就是它）。这里以前只认
+  /// `name` / `fileName`，两个都对不上 —— 于是附件列表永远是空的。
+  static String _attachmentName(Map<String, dynamic> item) {
+    for (final key in const ['filename', 'name', 'fileName']) {
+      final raw = _asString(item[key]).trim();
+      if (raw.isNotEmpty) return _sanitizeFileName(_decodeEncodedWord(raw));
+    }
+    return '';
+  }
+
+  /// 中文附件名常被写成 RFC 2047 编码字（`=?UTF-8?B?5rWL6K+VLnBkZg==?=`）。
+  /// 不解码的话，存到磁盘上就是一串等号加乱码。
+  static String _decodeEncodedWord(String value) {
+    if (!value.contains('=?')) return value;
+    return value.replaceAllMapped(
+      RegExp(r'=\?[^?]+\?([BbQq])\?([^?]*)\?='),
+      (match) {
+        final payload = match.group(2)!;
+        try {
+          final bytes = match.group(1)!.toUpperCase() == 'B'
+              ? base64.decode(payload)
+              : _decodeQEncoding(payload);
+          return utf8.decode(bytes, allowMalformed: true);
+        } catch (_) {
+          // 解不开就保留原样：宁可名字难看，也不能把它变成空字符串。
+          return match.group(0)!;
+        }
+      },
+    );
+  }
+
+  /// RFC 2047 的 Q 编码：`_` 代表空格，`=XX` 是一个字节。
+  static List<int> _decodeQEncoding(String payload) {
+    final text = payload.replaceAll('_', ' ');
+    final bytes = <int>[];
+    for (var i = 0; i < text.length; i++) {
+      final char = text[i];
+      if (char == '=' && i + 2 < text.length) {
+        final value = int.tryParse(text.substring(i + 1, i + 3), radix: 16);
+        if (value != null) {
+          bytes.add(value);
+          i += 2;
+          continue;
+        }
+      }
+      bytes.addAll(utf8.encode(char));
+    }
+    return bytes;
+  }
+
+  /// 路径分隔符和控制字符会破坏落盘路径（甚至写到别的目录去），统一换掉。
+  static String _sanitizeFileName(String value) {
+    final cleaned = value
+        .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1F]'), '_')
+        .trim();
+    return cleaned.isEmpty ? '附件' : cleaned;
+  }
 
   static Map<String, dynamic> _object(String raw) {
     final decoded = jsonDecode(raw);

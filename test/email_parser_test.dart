@@ -42,4 +42,25 @@ void main() {
     expect(draft.id, 'draft-1');
     expect(draft.bodyText, '第一行\n第二行');
   });
+
+  test('附件读 Coremail 的 filename 键，并解掉 RFC 2047 编码名', () {
+    // 键名必须是 filename：Android 版 EmailRepository.parseAttachment 读的
+    // 就是它，只认 name/fileName 的话附件列表会一直是空的。
+    final message = MailParser.parseMessage('''
+      {"code":"S_OK","var":{
+        "mailInfo":{"id":"m1","fid":1,"sentDate":"2026-10-27 10:00:00"},
+        "mail":{"subject":"带附件","from":["老师"],"to":["我"],
+          "mainPartData":{"content":"<p>正文</p>"},
+          "attachments":[
+            {"id":"2","filename":"课程安排.pdf","size":2048,"contentType":"application/pdf"},
+            {"id":"3","filename":"=?UTF-8?B?5oiQ57up5Y2VLnhsc3g=?="}
+          ]}}}
+    ''', 'm1');
+
+    expect(message.attachments, hasLength(2));
+    expect(message.attachments.first.id, '2');
+    expect(message.attachments.first.name, '课程安排.pdf');
+    expect(message.attachments.first.sizeBytes, 2048);
+    expect(message.attachments.last.name, '成绩单.xlsx');
+  });
 }

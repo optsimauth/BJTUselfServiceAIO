@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/constants/api_constants.dart';
 import '../../core/model/async_state.dart';
 import '../../core/utils/logger.dart';
 import '../../data/remote/api/email_api.dart';
 import '../../data/models/email/email_models.dart';
+import '../../services/download/download_service.dart';
 import 'email_view.dart';
 
 class EmailViewState {
@@ -14,11 +16,20 @@ class EmailViewState {
 }
 
 class EmailController extends ChangeNotifier {
-  EmailController({required EmailApi api}) : _api = api;
+  EmailController({required EmailApi api, DownloadService? downloadService})
+    : _api = api,
+      _downloadService = downloadService;
 
   static const Logger _log = Logger('EmailController');
 
   final EmailApi _api;
+
+  /// 只有附件下载用得上。可空是为了让纯逻辑测试（排序、移动、待办）不必
+  /// 搭一套下载链路；线上由 [ServiceLocator] 注入，不会是 null。
+  final DownloadService? _downloadService;
+
+  /// 正在下载的附件（附件 id，兜底用文件名）。界面据此显示进度圈。
+  final Set<String> _downloading = {};
   AsyncState<EmailViewState> _state = AsyncState<EmailViewState>.idle();
   bool _disposed = false;
   int _folderId = 1;
@@ -190,6 +201,55 @@ class EmailController extends ChangeNotifier {
       return null;
     }
   }
+
+  /// 附件下载地址。
+  ///
+  /// 和 Android 版 `EmailRepository.downloadAttachment` 走同一条通道，
+  /// 但落地方式不同：那边交给系统 `DownloadManager`，这边收回自家
+  /// [DownloadService]（并发上限、进度、保存目录都和课件/成绩单统一）。
+  ///
+  /// 返回落盘后的绝对路径。失败直接抛，由页面弹错误框 —— 附件下载失败
+  /// 没有「静默忽略」这种选项，用户点了一下总得知道结果。
+  Future<String> downloadAttachment(
+    MailMessage message,
+    MailAttachment file,
+  ) async {
+    final partId = file.id ?? '';
+    if (partId.isEmpty) {
+      throw StateError('这封邮件的附件缺少 part id，无法下载');
+    }
+    final service = _downloadService;
+    if (service == null) {
+      throw StateError('下载服务未就绪');
+    }
+    final key = file.id?.isNotEmpty == true ? file.id! : file.name;
+    // 界面已经把下载入口置灰了，这里再挡一层：连点两下不该出现两条任务。
+    if (!_downloading.add(key)) {
+      throw StateError('该附件正在下载中');
+    }
+    _notify();
+    try {
+      final url = await _api.attachmentDownloadUrl(
+        mid: message.id,
+        partId: partId,
+      );
+      return await service.download(
+        url: url,
+        fileName: file.name,
+        // 任务 id 用附件主键：同一封邮件重复下载会覆盖同一条进度记录。
+        name: 'mail/$key',
+        headers: const {'Referer': ApiConstants.mailIndexUrl},
+        folders: const ['邮箱'],
+      );
+    } finally {
+      _downloading.remove(key);
+      _notify();
+    }
+  }
+
+  /// 这个附件正在下载中（界面据此把下载图标换成进度圈）。
+  bool isDownloading(MailAttachment file) =>
+      _downloading.contains(file.id?.isNotEmpty == true ? file.id : file.name);
 
   /// 对一封邮件执行动作。本地先改、失败回滚。
   ///

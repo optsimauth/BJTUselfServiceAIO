@@ -53,6 +53,11 @@ abstract final class ApiConstants {
   static const String mailboxModuleUrl = '$misHost/module/module/26/';
   static const String mailHost = 'https://mail.bjtu.edu.cn';
   static const String mailJsonUrl = '$mailHost/coremail/s/json';
+
+  /// Coremail 老式 `coremail/s` 通道。附件下载走这里：
+  /// `func=mbox:getMessageData&mode=download`（与 Android 版
+  /// `EmailRepository.downloadAttachment` 同一条路）。
+  static const String mailDataUrl = '$mailHost/coremail/s';
   static const String mailReadMessageUrl =
       '$mailHost/coremail/XT/jsp/readMessage.jsp';
   static const String mailComposeUrl = '$mailHost/coremail/XT/jsp/compose.jsp';
