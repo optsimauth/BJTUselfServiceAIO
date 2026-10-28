@@ -2,6 +2,11 @@ name: Debug builds
 
 on:
   push:
+  workflow_dispatch:
+
+concurrency:
+  group: debug-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -10,8 +15,12 @@ jobs:
   android:
     name: Android debug APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -27,8 +36,12 @@ jobs:
   windows:
     name: Windows debug app
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -44,8 +57,12 @@ jobs:
   apple:
     name: macOS and iOS Simulator debug apps
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
