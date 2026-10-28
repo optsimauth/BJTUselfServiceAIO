@@ -1,4 +1,4 @@
-package com.example.bjtuselfserviceaio
+package team.bjtuss.bjtuselfserviceaio
 
 import io.flutter.embedding.android.FlutterActivity
 
