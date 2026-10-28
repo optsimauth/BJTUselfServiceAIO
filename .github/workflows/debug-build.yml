@@ -1,4 +1,4 @@
-name: Debug builds
+name: Release-mode test builds
 
 on:
   push:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   android:
-    name: Android debug APK
+    name: Android ARM64 release APK
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,16 +30,16 @@ jobs:
         with:
           cache-provider: basic
       - run: flutter pub get
-      - run: flutter build apk --debug --no-pub --target-platform android-arm64
+      - run: flutter build apk --release --no-pub --target-platform android-arm64
       - uses: actions/upload-artifact@v4
         with:
-          name: android-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: android-arm64-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30
 
   windows:
-    name: Windows debug app
+    name: Windows release app
     runs-on: windows-latest
     permissions:
       contents: read
@@ -53,16 +53,16 @@ jobs:
           cache: true
           pub-cache: true
       - run: flutter pub get
-      - run: flutter build windows --debug --no-pub
+      - run: flutter build windows --release --no-pub
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-debug-app
-          path: build/windows/x64/runner/Debug/
+          name: windows-release-app
+          path: build/windows/x64/runner/Release/
           if-no-files-found: error
           retention-days: 30
 
   apple:
-    name: macOS and iOS Simulator debug apps
+    name: macOS and iOS device release apps
     runs-on: macos-latest
     permissions:
       contents: read
@@ -76,35 +76,35 @@ jobs:
           cache: true
           pub-cache: true
       - run: flutter pub get
-      - name: Build macOS debug app
-        run: flutter build macos --debug --no-pub
+      - name: Build macOS release app
+        run: flutter build macos --release --no-pub
       - name: Package macOS app
         run: |
-          app_path="$(find build/macos/Build/Products/Debug -maxdepth 1 -type d -name '*.app' -print -quit)"
+          app_path="$(find build/macos/Build/Products/Release -maxdepth 1 -type d -name '*.app' -print -quit)"
           if [ -z "$app_path" ]; then
             echo "No macOS .app bundle found in the build output directory." >&2
             exit 1
           fi
-          ditto -c -k --sequesterRsrc --keepParent "$app_path" macos-debug.zip
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" macos-release.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-debug-app
-          path: macos-debug.zip
+          name: macos-release-app
+          path: macos-release.zip
           if-no-files-found: error
           retention-days: 30
-      - name: Build iOS Simulator debug app
-        run: flutter build ios --simulator --debug --no-pub
-      - name: Package iOS Simulator app
+      - name: Build unsigned iOS device release app
+        run: flutter build ios --release --no-codesign --no-pub
+      - name: Package unsigned iOS device app
         run: |
-          app_path="$(find build/ios/iphonesimulator -maxdepth 1 -type d -name '*.app' -print -quit)"
+          app_path="$(find build/ios/iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)"
           if [ -z "$app_path" ]; then
-            echo "No iOS Simulator .app bundle found in the build output directory." >&2
+            echo "No iOS device .app bundle found in the build output directory." >&2
             exit 1
           fi
-          ditto -c -k --sequesterRsrc --keepParent "$app_path" ios-simulator-debug.zip
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" ios-release-unsigned.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: ios-simulator-debug-app
-          path: ios-simulator-debug.zip
+          name: ios-release-unsigned-app
+          path: ios-release-unsigned.zip
           if-no-files-found: error
           retention-days: 30
