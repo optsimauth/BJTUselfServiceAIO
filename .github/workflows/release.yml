@@ -1,0 +1,278 @@
+name: Release packages
+
+# 四件产物：apk / msi / dmg / ipa
+# - 任意分支 push：产出四件 artifacts（只留存，不进 Release）
+# - push tag v*：额外把四件挂到 GitHub Release，并附 SHA256SUMS.txt
+# - workflow_dispatch：手动干跑，行为同分支 push
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TZ: Asia/Shanghai
+  APP_NAME: BJTUselfServiceAIO
+
+jobs:
+  meta:
+    name: 读取版本号
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: v
+        run: |
+          version="$(grep -m1 '^version:' pubspec.yaml | sed -e 's/^version:[[:space:]]*//' -e 's/+.*$//' | tr -d '[:space:]')"
+          if [ -z "$version" ]; then
+            echo "pubspec.yaml 里没有解析到 version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "版本号：$version"
+
+  android:
+    name: Android arm64 apk
+    runs-on: ubuntu-latest
+    needs: meta
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache: true
+
+      - name: 还原 release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "缺少 ANDROID_KEYSTORE_BASE64，拒绝用 debug key 出 release 包" >&2
+            exit 1
+          fi
+          mkdir -p android/keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/keystore/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=keystore/release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - run: flutter pub get
+      - run: flutter build apk --release --target-platform android-arm64
+
+      - name: 重命名并校验签名
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          src="build/app/outputs/flutter-apk/app-release.apk"
+          out="dist/${APP_NAME}-${VERSION}-arm64-v8a.apk"
+          cp "$src" "$out"
+
+          sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          apksigner="$(find "$sdk/build-tools" -maxdepth 2 -name apksigner -type f | sort | tail -n 1)"
+          if [ -n "$apksigner" ]; then
+            "$apksigner" verify --print-certs "$out" | head -n 5
+          else
+            echo "找不到 apksigner，跳过校验" >&2
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aio-android
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    name: Windows per-user msi
+    runs-on: windows-latest
+    needs: meta
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release --no-pub
+
+      - name: 安装 WiX 5
+        run: |
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          # 固定 5.0.2：WiX 6/7 需要接受 OSMF 付费条款，5.x 不需要
+          dotnet tool install --global wix --version 5.0.2 2>&1 | Write-Host
+          $LASTEXITCODE = 0
+          $wix = Join-Path $env:USERPROFILE ".dotnet\tools\wix.exe"
+          if (-not (Test-Path -LiteralPath $wix)) { throw "WiX 5.0.2 安装失败" }
+          & $wix --version
+
+      - name: 生成 msi
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          pwsh -NoProfile -File installer/build-msi.ps1 `
+            -SourceDir "build/windows/x64/runner/Release" `
+            -Version "$env:VERSION" `
+            -Output "dist/$env:APP_NAME-$env:VERSION.msi" `
+            -IconPath "windows/runner/resources/app_icon.ico"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aio-windows
+          path: dist/*.msi
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    name: macOS dmg
+    runs-on: macos-latest
+    needs: meta
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache: true
+      - run: flutter pub get
+      - run: flutter build macos --release --no-pub
+
+      - name: ad-hoc 签名
+        run: |
+          set -euo pipefail
+          app="$(find build/macos/Build/Products/Release -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [ -z "$app" ]; then
+            echo "没有找到 .app，flutter build macos 可能失败了" >&2
+            exit 1
+          fi
+          echo "app=$app" >> "$GITHUB_ENV"
+          # 未签名的 arm64 二进制在 Apple Silicon 上会被报「已损坏」，必须先 ad-hoc 自签
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")"
+
+      - name: 生成 dmg
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/dmg-stage"
+          rm -rf "$stage"
+          mkdir -p "$stage" dist
+          # 把 .app 和指向 /Applications 的软链一起放进镜像，用户拖动即安装
+          cp -R "$app" "$stage/"
+          ln -s /Applications "$stage/Applications"
+          hdiutil create -volname "$APP_NAME" -srcfolder "$stage" -ov -format UDZO \
+            "dist/${APP_NAME}-${VERSION}.dmg"
+          hdiutil verify "dist/${APP_NAME}-${VERSION}.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aio-macos
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS unsigned ipa
+    runs-on: macos-latest
+    needs: meta
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign --no-pub
+
+      - name: 组装 ipa
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          app="$(find build/ios/iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [ -z "$app" ]; then
+            echo "没有找到 iOS .app，flutter build ios 可能失败了" >&2
+            exit 1
+          fi
+
+          name="${APP_NAME}-${VERSION}-iOS-unsigned.ipa"
+          rm -rf ipa-stage dist
+          mkdir -p ipa-stage/Payload dist
+          # ipa 的硬性结构：根目录下必须是 Payload/<App>.app，缺一层 installd 直接拒装
+          cp -R "$app" ipa-stage/Payload/
+          # ad-hoc 自签，让包结构完整；Sideloadly 会用用户自己的 Apple ID 重新签名
+          codesign --force --deep --sign - "ipa-stage/Payload/$(basename "$app")"
+          codesign --verify --deep --strict "ipa-stage/Payload/$(basename "$app")" || true
+          (cd ipa-stage && zip -qry -X "../dist/$name" Payload)
+          unzip -tq "dist/$name"
+          ls -lh "dist/$name"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aio-ios
+          path: dist/*.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: 发布到 GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: [meta, android, windows, macos, ios]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: aio-*
+          merge-multiple: true
+          path: dist
+
+      - name: 生成校验和
+        run: |
+          cd dist
+          ls -1
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: dist/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true

@@ -71,3 +71,9 @@ lib/repomix-output.xml
 
 # flutter run 输出
 /.txt
+
+# Android release 签名材料，绝不入库
+/android/key.properties
+/android/keystore/
+*.jks
+*.keystore
