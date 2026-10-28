@@ -70,7 +70,13 @@ jobs:
       - name: Build macOS debug app
         run: flutter build macos --debug
       - name: Package macOS app
-        run: ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Debug/Runner.app macos-debug.zip
+        run: |
+          app_path="$(find build/macos/Build/Products/Debug -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [ -z "$app_path" ]; then
+            echo "No macOS .app bundle found in the build output directory." >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" macos-debug.zip
       - uses: actions/upload-artifact@v4
         with:
           name: macos-debug-app
@@ -80,7 +86,13 @@ jobs:
       - name: Build iOS Simulator debug app
         run: flutter build ios --simulator --debug
       - name: Package iOS Simulator app
-        run: ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app ios-simulator-debug.zip
+        run: |
+          app_path="$(find build/ios/iphonesimulator -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [ -z "$app_path" ]; then
+            echo "No iOS Simulator .app bundle found in the build output directory." >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" ios-simulator-debug.zip
       - uses: actions/upload-artifact@v4
         with:
           name: ios-simulator-debug-app
