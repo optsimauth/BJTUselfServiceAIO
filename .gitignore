@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+**/Pods/
+**/.symlinks/
 
 # Symbolication related
 app.*.symbols
@@ -56,6 +58,7 @@ app.*.map.json
 # 本地/工具产物
 .pi/
 .pi-glla/
+/.workbuddy/
 lib/repomix-output.xml
 
 # 根目录重复的模型（代码只用 assets/model.onnx）

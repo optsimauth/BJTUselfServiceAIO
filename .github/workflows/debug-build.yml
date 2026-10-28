@@ -1,0 +1,72 @@
+name: Debug builds
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build apk --debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    name: Windows debug app
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build windows --debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-debug-app
+          path: build/windows/x64/runner/Debug/
+          if-no-files-found: error
+          retention-days: 30
+
+  apple:
+    name: macOS and iOS Simulator debug apps
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Build macOS debug app
+        run: flutter build macos --debug
+      - name: Package macOS app
+        run: ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Debug/Runner.app macos-debug.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-debug-app
+          path: macos-debug.zip
+          if-no-files-found: error
+          retention-days: 30
+      - name: Build iOS Simulator debug app
+        run: flutter build ios --simulator --debug
+      - name: Package iOS Simulator app
+        run: ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app ios-simulator-debug.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-debug-app
+          path: ios-simulator-debug.zip
+          if-no-files-found: error
+          retention-days: 30
