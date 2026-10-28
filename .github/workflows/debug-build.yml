@@ -24,8 +24,13 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
+          pub-cache: true
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
       - run: flutter pub get
-      - run: flutter build apk --debug
+      - run: flutter build apk --debug --no-pub --target-platform android-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: android-debug-apk
@@ -45,8 +50,10 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
+          pub-cache: true
       - run: flutter pub get
-      - run: flutter build windows --debug
+      - run: flutter build windows --debug --no-pub
       - uses: actions/upload-artifact@v4
         with:
           name: windows-debug-app
@@ -66,9 +73,11 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
+          pub-cache: true
       - run: flutter pub get
       - name: Build macOS debug app
-        run: flutter build macos --debug
+        run: flutter build macos --debug --no-pub
       - name: Package macOS app
         run: |
           app_path="$(find build/macos/Build/Products/Debug -maxdepth 1 -type d -name '*.app' -print -quit)"
@@ -84,7 +93,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Build iOS Simulator debug app
-        run: flutter build ios --simulator --debug
+        run: flutter build ios --simulator --debug --no-pub
       - name: Package iOS Simulator app
         run: |
           app_path="$(find build/ios/iphonesimulator -maxdepth 1 -type d -name '*.app' -print -quit)"
