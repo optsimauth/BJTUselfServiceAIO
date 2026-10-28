@@ -3,6 +3,8 @@
 规则一句话：**页面里不出现裸数字**。间距、圆角、字号、颜色都从 `lib/shared/theme/` 取。
 `test/design_token_lint_test.dart` 会把违规挡在 CI 之外。
 
+视觉参考为 [Flutter Shadcn UI](design-references/flutter-shadcn-ui/README.md)：采用 Slate 中性色、细边框与克制圆角，继续使用交大蓝和现有 Material 组件。字体与间距刻度保持现有中文阅读设置。
+
 ## 1. 间距刻度 —— `AppSpacing`
 
 代码位置：`lib/shared/theme/spacing.dart:5`
@@ -34,14 +36,14 @@
 | `AppRadius.chip` | 6 | 徽章、小圆点标签 |
 | `AppRadius.sm` | 8 | 输入框、小色块（课表格子、教室时间段格） |
 | `AppRadius.badge` | 10 | 课表格子上的次级徽章 |
-| `AppRadius.md` | 12 | 列表项、输入框、对话框按钮、SnackBar |
-| `AppRadius.control` | 14 | FilledButton / OutlinedButton（见 `app_theme.dart` 按钮主题） |
-| `AppRadius.lg` | 16 | 卡片（`cardTheme.shape`） |
-| `AppRadius.sheet` | 20 | 对话框、底部弹层、摘要卡（`dialogTheme` / `bottomSheetTheme`） |
+| `AppRadius.md` | 12 | 列表项、菜单、SnackBar |
+| `AppRadius.control` | 8 | 输入、按钮、导航选中态（见 `app_theme.dart`） |
+| `AppRadius.lg` | 12 | 卡片（`cardTheme.shape`） |
+| `AppRadius.sheet` | 16 | 对话框、底部弹层、摘要卡（`dialogTheme` / `bottomSheetTheme`） |
 
 ## 3. 触控目标 —— `AppTouch`
 
-代码位置：`lib/shared/theme/spacing.dart:52`。`AppTouch.minimum = 44`。
+代码位置：`lib/shared/theme/spacing.dart`。`AppTouch.minimum = 48`。
 视觉可以更小（星期胶囊 32），但命中区必须用 `ConstrainedBox(minWidth/minHeight: AppTouch.minimum)` 撑开。
 
 ## 4. 字号层级 —— `AppTypography`
@@ -64,14 +66,16 @@
 
 | 语义位 | 用途 | 来源 |
 | --- | --- | --- |
-| `surface` | 页面底色 | `ColorScheme.fromSeed`（`AppColors.brand` 打底） |
+| `surface` | 页面底色 | `AppColors.neutralLight / neutralDark` 的 Slate 中性色 |
 | `surfaceContainerLowest` | 输入框填充 | `inputDecorationTheme.fillColor` |
 | `surfaceContainerLow` | 卡片底、底部弹层 | `cardTheme.color` / `bottomSheetTheme` |
-| `surfaceContainerHigh` | 对话框底、筛选条底 | `dialogTheme.backgroundColor` |
-| `surfaceContainerHighest` | 未选中的小徽标底 | 页面内按需取 |
-| `outlineVariant` | 卡片描边、分隔线、输入框描边 | 1px；`dividerTheme` 同样走它 |
+| `surfaceContainerHigh` | 局部强调与筛选条底 | 页面内按需取；对话框统一使用 `surfaceContainerLow` |
+| `surfaceContainer` / `surfaceContainerHighest` | 服务图标底 / 未选中的小徽标底 | 页面内按需取 |
+| `outlineVariant` | 卡片描边、分隔线（输入与次按钮边框使用 outline） | 1px；`dividerTheme` 同样走它 |
 | `onSurface` / `onSurfaceVariant` | 正文 / 次要文字 | `AppTheme._build` 显式绑定，不靠 ThemeData 推导 |
 | `onPrimary` / `onInverseSurface` | primary 卡上的文字 / SnackBar 文字 | 单独绑定，避免深底深字 |
+
+浅色页面为 `#F4F6FA`，卡片为白色，正文为 `#0F172A`；深色页面为 `#0B1120`，卡片为 `#111B2E`，正文为 `#E2E8F0`。强调色与状态色继续由品牌种子生成，中性阅读区域独立于种子变化。输入交互描边满足 3:1，普通卡片描边保留现有 1.5:1 底线。
 
 ## 6. 状态色语义 —— `AppColors`
 
@@ -86,7 +90,7 @@
 | `AppColors.danger` | `#D9534F` | 失败 / 破坏性操作 |
 | `AppColors.exam(scheme)` | 浅色 `#B25A00` / 深色 `#F5A524` | 考试。**两套值**，写死一个色必然有一边看不清 |
 | `AppColors.forCourse(id)` | 8 色调色板 | 课程稳定取色；铺在上面的文字用 `AppColors.onAccent` |
-| `AppColors.onAccent` | `#FFFFFF` | 铺在课程色 / primary 上的文字 |
+| `AppColors.onAccent` | 按背景亮度配对 | 铺在课程色上的文字；primary 使用 onPrimary |
 | `AppColors.transparent` | `#00000000` | const 容器（如 `CalendarStyle`）里也要有名字 |
 
 对比度底线：正文 ≥ 4.5:1（`test/app_visual_contrast_test.dart` 已断言）；
@@ -106,12 +110,17 @@
 
 | 断点 | 行为 | 代码位置 |
 | --- | --- | --- |
-| ≤ 1160 | 全宽，页面左右留白 16 | `lib/shared/widgets/page_width.dart` |
-| > 1160 | 限宽 1160 居中，两侧画底色 | 同上（在 `app.dart` 里包住整个 Navigator） |
-| 系统字号放大 | 夹到 1.3x，防密集表格溢出 | `app.dart` 的 `MediaQuery.withClampedTextScaling` |
-| 桌面滚动 | 常驻滚动条，鼠标可拖动 | `AppScrollBehavior`（`app_theme.dart`） |
+| < 600 | 底部 `NavigationBar` | `lib/app/app_navigation.dart` |
+| ≥ 600 | 左侧 `NavigationRail`（只图标 + 文字标签） | 同上 |
+| ≥ 1200 | 侧栏展开成带文字的宽栏 | 同上 |
+| 页面宽度 | 全局**不再限宽**，由页面自己决定内容宽度（首页、服务页 840） | `lib/shared/widgets/page_width.dart`、`home_page.dart`、`space_page.dart` |
+| 系统字号放大 | 不夹断：按系统 `TextScaler` 渲染；固定高度一律改 `minHeight`，长文本换行或省略 | 各页（如 `classroom_page.dart` 时间段格子、`homework_page.dart` 筛选条） |
+| 桌面滚动 | 框架滚动条，鼠标与触控板可拖动 | `AppScrollBehavior`（`app_theme.dart`） |
 
-窄栏例外：登录页 `maxWidth: 460`（`login_page.dart:89`）是有意的窄表单，不属于 1160 体系。
+窄栏例外：登录页 `maxWidth: 440`（`login_page.dart`）是有意的窄表单，不属于页面宽度体系。
+
+字号约定：默认跟随系统，不做 1.3 倍上限。凡是「视觉尺寸」写死的地方（如星期胶囊 32×32），
+命中区域用 `AppTouch.minimum` 单独撑开，视觉与触控是两件事。
 
 ## 9. 禁止清单
 
@@ -121,3 +130,7 @@
 - 硬编码 `EdgeInsets` 里的非零数字
 - 新增第三方 UI 库或状态管理框架
 - 放宽 `analysis_options.yaml` 的规则强度
+
+## 10. 布局常量 —— AppLayout
+
+railMinWidth = 600；extendedRailMinWidth = 1200；contentMaxWidth = 840；formMaxWidth = 440；boardMaxWidth = 1200。普通列表使用 contentMaxWidth，课表、教室与邮箱使用 boardMaxWidth。外部响应式分级与本项目选择的区别见 UI_SPEC 第 2、3 节。首页、服务内容区小于 600 时留白 16，达到 600 时留白 24。

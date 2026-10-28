@@ -1,0 +1,15 @@
+id,name,keywords,duration_ms,curve,use,notes
+m01,Press scale,press;tap;button;feedback,120,Cubic(0.23 1 0.32 1),Button/card press,scale 0.97; release 160ms
+m02,State change,toggle;chip;switch;color,200,Cubic(0.2 0 0 1),Selected/unselected state,color+opacity; no travel
+m03,Fade in,enter;appear;reveal,200,Cubic(0.23 1 0.32 1),Content appears,opacity 0 to 1 plus 8dp offset max
+m04,Fade out,exit;dismiss;remove,140,Cubic(0.3 0 0.8 0.15),Content leaves,about 0.65x of enter
+m05,Dropdown / menu,menu;popover;tooltip,180,Cubic(0.23 1 0.32 1),Anchored overlays,scale from 0.95 at trigger origin
+m06,Dialog,dialog;modal;alert,250,Curves.easeOutCubic,Centered overlay,fade + scale 0.95 to 1; scrim 200ms
+m07,Bottom sheet,sheet;drawer;ios,300,Cubic(0.32 0.72 0 1),Modal sheet,iOS-like decel; drag velocity-aware
+m08,Route shared axis,navigation;sibling;route,300,Curves.easeInOutCubicEmphasized,Sibling navigation,animations package SharedAxisTransition
+m09,Container transform,card;detail;hero,350,Curves.easeInOutCubicEmphasized,Card to detail,animations OpenContainer; once per flow
+m10,Stagger list,list;entrance;stagger,40,Cubic(0.23 1 0.32 1),First list entrance,30-50ms offset; max 400ms total; first load only
+m11,Spring settle,drag;snap;release,400,spring damping 1.0,Drag release,SpringDescription stiffness 300 damping ratio 1
+m12,Spring playful,playful;bounce;success,500,spring damping 0.75,Delight moments,bounce 0.1-0.3 max; rare
+m13,Skeleton shimmer,loading;skeleton,1500,linear,Loading placeholders,pause when off-screen; reduce motion static
+m14,Reduced motion,a11y;reduce;disable,150,Curves.easeOutCubic,Fallback for reduce motion,opacity/color only; no travel or scale

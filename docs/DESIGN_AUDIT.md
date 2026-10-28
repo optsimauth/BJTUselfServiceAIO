@@ -1,5 +1,7 @@
 # 设计审计（DESIGN_AUDIT）
 
+> 历史审计快照：以下问题和建议保留用于追溯，不代表当前代码状态。当前外部依据、断点和验收范围以 UI_SPEC.md 与 UI_CONSISTENCY_REVIEW.md 为准。现有登录栏宽为 440，首页/服务及主要信息列表限宽为 840；成绩、考试、作业、课件已通过现有注入接口做整页验证。
+
 审计对象：`lib/features` 下 16 个功能页 + 2 个共用展示组件 = 18 屏。
 基准：`flutter/skills`（一致性基线）、`dickwu/apple-design-skill`（Apple HIG 原文对照）、
 `kamranbekirovyz/skills · flutter-improve-design`（Flutter UI/UX 审阅 + 改动清单）。
@@ -7,6 +9,8 @@
 
 级别含义：**P0** 影响可用性或无障碍底线，必须改；**P1** 明显影响观感/一致性；
 **P2** 打磨项，可以排到下个迭代。
+
+> 下表是审计当时的快照，行号会随改动漂移；逐条处理结果见文末「处理进度」。
 
 ## 逐屏审计表
 
@@ -52,7 +56,7 @@
 ## 已落地的横切修复（本次会话）
 
 1. 新增 token 层 `lib/shared/theme/spacing.dart`：`AppSpacing`（4/8/12/16/24/32）、
-   `AppRadius`（2/4/6/8/10/12/14/16/20，按用途命名）、`AppTouch.minimum = 44`。
+   `AppRadius`（2/4/6/8/10/12/14/16/20，按用途命名）、`AppTouch.minimum = 48`。
 2. `AppTypography.sizeFixed()`：给「必须固定字号」的窄屏标签用，避免裸 `fontSize:`。
 3. `AppColors.transparent` / `AppColors.onAccent`：消灭 `Colors.transparent`、`Colors.white`。
 4. `lib/features` + `lib/shared/widgets|components` 全部间距/圆角/字号/颜色改走 token。
@@ -62,11 +66,40 @@
 
 ## 响应式人工清单（自动化覆盖不到的部分）
 
-整页 widget 测试跑不了：`ServiceLocator` 是私有构造的依赖图（数据库 / 网络 / 平台通道），
-没有测试缝，而本次不允许改 `lib/app`、`lib/data`、`lib/services`。所以下面这些只能人工过：
+`ServiceLocator` 是私有构造的依赖图（数据库 / 网络 / 平台通道），没有测试缝；
+能注入依赖的页面（教室页 `repository`、登录页 `onLogin`、首页 `summary`）已经用 widget 测试覆盖，
+剩下的只能人工过：
 
+- [x] 教室页 360 宽 + 2 倍字号：`test/classroom_page_build_test.dart`（无溢出、星期胶囊命中区 ≥ 48）
+- [x] 登录 / 首页 / 服务页 360 / 820 / 1440 × 浅深色 × 1.0 / 2.0：`test/ui_redesign_test.dart`
 - [ ] 首页：1280 宽下日历与「今日课」是否并排、是否出现超长单行
-- [ ] 作业页：1280 宽下时间轴竖线与节点是否仍对齐
+- [ ] 作业页：1280 宽下时间轴竖线与节点是否仍对齐；2 倍字号下筛选条
 - [ ] 邮箱页：1280 宽下详情 `Table` 是否左对齐、右侧是否留白过大
-- [ ] 教室页：360 宽下 7 个时间段格横向滚动是否顺手
 - [ ] 深色模式：所有页面走一遍（课程色块、状态色、primary 卡上的白字）
+
+## 处理进度
+
+### 本轮已修
+
+- 教室页星期胶囊：视觉保持 32×32，命中区用 `AppTouch.minimum`（48）撑开 —— 表内 P0。
+- 教室页星期条：七个 48 命中区加起来 336，手机窄屏再放「看哪一天」说明就会把周日挤出屏幕；
+  < 420 宽时去掉说明，七天平分整行，全部可见（新增用例覆盖）。
+- 教室页时间段格子：`height: 44` 改 `minHeight`，节次号居中，2 倍字号不再撑破格子 —— 表内 P0。
+- 教室页格子内容：手机上「节次号 + 8:00~9:50」两行会被压到 7px 上下的「看得见但看不清」，
+  < 420 宽只写节次号（学生本来就知道第几节是几点），宽屏才写时间段。
+- 教室页房间卡头部：右侧「x/y 人 · z%」原来是不可收缩的 `Text`，2 倍字号下整行溢出 69px，
+  改 `Flexible` + 右对齐换行（这个溢出是补 2 倍字号用例时才暴露的）。
+- 作业页筛选条：`SizedBox(height: 52)` 改 `ConstrainedBox(minHeight: 52)`，字号放大不再裁字。
+- 其他功能页：三个一次性动作补 `subtitle`，写明产物是下载目录里的 PDF。
+
+### 前一轮已修（表内多数 P0/P1）
+
+首页日历格 `cellMargin`、成绩页筛选 `tooltip`、日志 `SelectableText`、设置页「关于」弹窗、
+课程页周次箭头命中区、`AppCard` 默认内边距、服务页改分组列表等。
+
+### 有意保留
+
+- 邮箱详情表格横向滚动：`Table` + `IntrinsicColumnWidth` 在窄屏必须能滚，桌面端留白可接受。
+- 课件树缩进 `16.0` 留在数据层：`AppSpacing` 属 UI 层，数据层不应反向依赖主题。
+- 登录表单现统一为 AppLayout.formMaxWidth（440）；历史审计中的 460 不再适用。
+

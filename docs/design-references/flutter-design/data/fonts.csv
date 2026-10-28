@@ -1,0 +1,21 @@
+id,name,keywords,display,text,mono,scripts,notes
+f01,Geometric Modern,modern;tech;saas;clean;startup,Outfit,DM Sans,JetBrains Mono,latin,Avoid Inter+gray default; DM Sans has tabular figures via feature
+f02,Editorial Serif,editorial;luxury;magazine;culture;journal,Fraunces,Source Sans 3,IBM Plex Mono,latin,Fraunces variable opsz/wght; use display roles only
+f03,Humanist Friendly,friendly;health;family;education;wellness,Nunito,Nunito Sans,Fira Code,latin,Rounded terminals feel approachable
+f04,Grotesk Bold,fashion;bold;creative;media;youth,Space Grotesk,Work Sans,Space Mono,latin,Quirky numerals; check legibility at 12sp
+f05,Swiss Neutral,fintech;pro;utility;dashboard;enterprise,Manrope,Public Sans,IBM Plex Mono,latin,Neutral and precise; Manrope has tabular numbers
+f06,Warm Serif Text,reading;books;blog;news;long-form,Newsreader,Newsreader,IBM Plex Mono,latin,Serif body needs +0.05 line height
+f07,Techno Display,gaming;crypto;futuristic;ai,Sora,Inter Tight,JetBrains Mono,latin,Use display sparingly
+f08,Playful Rounded,kids;games;playful;casual,Baloo 2,Quicksand,Fira Code,latin;devanagari,Strong for Hindi support via Baloo 2
+f09,Premium Sans,luxury;beauty;minimal;boutique,Jost,Jost,DM Mono,latin,Futura-like; use light weights carefully for contrast
+f10,Condensed Impact,sports;news;alerts;fitness,Barlow Condensed,Barlow,Roboto Mono,latin,Condensed display with matching text
+f11,Indic Friendly,india;hindi;marathi;regional,Poppins,Noto Sans Devanagari,Noto Sans Mono,latin;devanagari,Poppins display with Noto fallback for Devanagari
+f12,Arabic Ready,arabic;rtl;middle-east;multilingual,IBM Plex Sans Arabic,IBM Plex Sans Arabic,IBM Plex Mono,arabic;latin,Single family covers both scripts
+f13,CJK Ready,japanese;chinese;korean;multilingual,Noto Sans JP,Noto Sans JP,Noto Sans Mono,japanese;latin,Large files; subset or use system fonts
+f14,Classic Contrast,heritage;legal;finance;institutional,Playfair Display,Lato,Courier Prime,latin,High contrast display; avoid below 24sp
+f15,Soft Grotesque,wellness;sleep;meditation;calm,Figtree,Figtree,DM Mono,latin,Single family; weight variation carries hierarchy
+f16,Industrial Mono,developer;terminal;tools;data,JetBrains Mono,IBM Plex Sans,JetBrains Mono,latin,Mono for headings only if brief demands
+f17,Scandi Clean,home;interior;minimal;design,Instrument Sans,Instrument Sans,Geist Mono,latin,Single family minimal
+f18,Retro Slab,craft;food;vintage;coffee,Roboto Slab,Karla,Roboto Mono,latin,Use slab for headlines only
+f19,System Native,native;ios;android;utility;performance,system-ui,system-ui,monospace,latin,Zero download; SF on iOS Roboto on Android; set intentionally
+f20,Expressive Variable,expressive;m3;playful;brand,Google Sans Flex,Google Sans Flex,Google Sans Code,latin,Variable axes for width and roundness; verify availability

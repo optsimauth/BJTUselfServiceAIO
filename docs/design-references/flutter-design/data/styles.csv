@@ -1,0 +1,25 @@
+id,name,keywords,variance,motion,density,shape,description,avoid
+s01,Quiet Material,calm;wellness;productivity;notes,3,2,5,radius 12-16 soft,Standard M3 with tinted surfaces and generous spacing,Gradients and saturated fills
+s02,Editorial Mobile,editorial;magazine;reading;culture,8,4,3,sharp 0-4 and full pills,Large display type; asymmetric layouts; image-led,Card grids
+s03,Data Dense Pro,dashboard;trading;analytics;b2b,3,2,8,radius 4-8,Compact lists; tabular figures; muted chrome,Large hero areas
+s04,Playful Rounded,kids;games;casual;social,8,8,3,radius 20-28 and pills,Bright accents; springs; big touch targets,Dense text
+s05,Brutalist Flat,portfolio;experimental;creative,10,3,5,radius 0; 2px borders,Hard borders; mono labels; flat color,Soft shadows
+s06,Neo Bank Bold,fintech;consumer;youth,6,5,5,radius 16-24,Big numerals; saturated primary; sheet-driven flows,Gray utility look
+s07,Soft Glass iOS,ios;media;control-center;tabbar,7,6,4,radius 24-32,Translucent floating controls over imagery with fallbacks,Glass on body text
+s08,Material Expressive,expressive;consumer;brand,8,7,4,mixed expressive shapes,Springs; shape morph; vibrant variant,Using for dense tools
+s09,Field Guide,outdoors;maps;nature;education,5,3,5,radius 8,Earthy palette; illustration accents; clear labels,Neon
+s10,Dark Studio,music;video;gaming;creative tools,6,5,6,radius 8-12,Near-black tinted surfaces; one accent; subtle elevation,Pure black with gray text
+s11,Warm Craft,food;ceramics;market;handmade,6,3,4,radius 12 and organic,Warm neutrals; texture-like photography; serif display,Cold blue
+s12,Medical Clear,health;clinic;records,2,2,6,radius 8,High contrast; large text; explicit states,Decorative motion
+s13,Civic Plain,government;public;forms,2,1,6,radius 4,GOV-style clarity; strong focus rings,Brand flourish
+s14,Travel Immersive,travel;hotel;booking;maps,7,6,3,radius 16-28,Full-bleed imagery; shared element transitions,Cluttered chips
+s15,Commerce Clean,shop;marketplace;catalog,4,3,6,radius 8-12,Product-first grid; clear price type; sticky CTA,Autoplay carousels
+s16,Habit Tracker Calm,habit;fitness;journal;streak,5,4,4,radius 16-20,Progress rings; tonal containers; haptic confirmations,Gamified noise
+s17,Terminal Mono,developer;devtools;cli,5,2,8,radius 2-4,Mono type; tight grid; syntax-tinted accents,Rounded playful
+s18,Luxury Minimal,luxury;beauty;fashion;boutique,7,3,2,radius 0-4,Wide margins; light weights; restrained palette,Loud color
+s19,Civic Dark High Contrast,accessibility;low-vision;night,3,1,5,radius 8,Maximum contrast; large targets; no transparency,Subtle grays
+s20,Adaptive Productivity,tablet;desktop;email;calendar,4,3,7,radius 8-12,Two-pane; rail; keyboard shortcuts; hover states,Phone-only patterns
+s21,Illustrated Friendly,onboarding;education;nonprofit,7,5,3,radius 20,Custom illustration; warm palette; rounded type,Stock photos
+s22,Newsroom,news;sports;live;alerts,4,3,7,radius 4,Strong headline hierarchy; live badges; clear timestamps,Large padding
+s23,Audio Player,podcast;music;audiobooks,6,5,4,radius 16,Large artwork; waveform; mini-player to full transition,Tiny controls
+s24,Super App Hub,delivery;services;wallet,5,4,6,radius 12-16,Clear service grid; wallet card; contextual banners,Everything same weight
