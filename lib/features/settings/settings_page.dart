@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path/path.dart' as p;
 
 import '../../app/app_router.dart';
 
@@ -29,9 +32,37 @@ class _SettingsPageState extends State<SettingsPage> {
   late final _updateService = ServiceScope.of(context).updateService;
   late final _accountRepository = ServiceScope.of(context).accountRepository;
   late final _filePicker = ServiceScope.of(context).filePickerService;
+  late final _platform = ServiceScope.of(context).platformService;
 
   AppRelease? _latestRelease;
   bool _checkingUpdate = false;
+
+  /// 系统下载目录的真实路径（Windows 的 `C:\Users\x\Downloads`、
+  /// macOS 的 `~/Downloads`、Android 的外部目录…），解析出来之前是 null。
+  String? _systemDownloadRoot;
+  bool _systemDownloadRequested = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 平台服务要从 InheritedWidget 拿，只能放在这里而不是 initState；
+    // didChangeDependencies 会重复触发，所以只解析一次。
+    if (_systemDownloadRequested) return;
+    _systemDownloadRequested = true;
+    unawaited(_loadSystemDownloadRoot());
+  }
+
+  Future<void> _loadSystemDownloadRoot() async {
+    try {
+      final directory = await _platform.downloadsDirectory();
+      if (!mounted) return;
+      setState(() => _systemDownloadRoot = directory.path);
+    } catch (_) {
+      // 解析不出来就保持 null，UI 会显示占位，不影响下载本身。
+      if (!mounted) return;
+      setState(() => _systemDownloadRoot = null);
+    }
+  }
 
   Future<void> _checkForUpdate() async {
     setState(() => _checkingUpdate = true);
@@ -98,17 +129,21 @@ class _SettingsPageState extends State<SettingsPage> {
     if (picked == null || !mounted) return;
     await _preferences.setDownloadDirectory(picked);
     if (!mounted) return;
-    _toast('所有下载将保存到 $picked/${AppConstants.downloadAppFolder}/');
+    _toast('所有下载将保存到 ${p.join(picked, AppConstants.downloadAppFolder)}');
   }
 
   /// 下载真正落盘的目录：设置里选的（或者系统下载目录）+ app 那一层文件夹。
   ///
   /// 设置页要显示它，用户才找得到自己下的东西；课件、成绩单、校历、
   /// 教学日历、课表 .ics 全部在这里面。
+  ///
+  /// 系统下载目录是异步解析出来的，没解析完之前显示占位，
+  /// 解析到之后换成真实路径（例如 `C:\Users\Miracle\Downloads\bjtuselfserviceaio`）。
   String get _downloadLocation {
-    final root = _preferences.downloadDirectory.trim();
-    final base = root.isEmpty ? '系统下载目录' : root;
-    return '$base/${AppConstants.downloadAppFolder}/';
+    final chosen = _preferences.downloadDirectory.trim();
+    final base = chosen.isNotEmpty ? chosen : _systemDownloadRoot;
+    if (base == null) return '正在解析系统下载目录…';
+    return p.join(base, AppConstants.downloadAppFolder);
   }
 
   /// 选一个新的日志目录。取消了就不改设置。
