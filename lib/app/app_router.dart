@@ -24,6 +24,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'service_locator.dart';
+import 'app_navigation.dart';
 
 /// 路由表 + 登录守卫。旧项目是 RouteManager + NavHost（13 个 destination）。
 abstract final class AppRoutes {
@@ -153,7 +154,7 @@ GoRouter createAppRouter(ServiceLocator locator) {
         path: AppRoutes.other,
         builder: (context, state) => const OtherFunctionPage(),
       ),
-// 暂时停用：Windows 上 WebView2 纹理合成仍会白屏 / 吞点击，定位完再放开。
+      // 暂时停用：Windows 上 WebView2 纹理合成仍会白屏 / 吞点击，定位完再放开。
       // GoRoute(
       //   path: AppRoutes.web,
       //   builder: (context, state) => WebPage(
@@ -197,40 +198,19 @@ class AppShell extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  static const List<NavigationDestination> destinations = [
-    NavigationDestination(
-      icon: Icon(Icons.home_outlined),
-      selectedIcon: Icon(Icons.home),
-      label: '首页',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.grid_view_outlined),
-      selectedIcon: Icon(Icons.grid_view),
-      label: '应用',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.settings_outlined),
-      selectedIcon: Icon(Icons.settings),
-      label: '设置',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        destinations: destinations,
-        onDestinationSelected: (index) {
-          // 切 tab 轻轻一下：手指不盯着屏幕也知道按到了。
-          HapticFeedback.selectionClick();
-          navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
-          );
-        },
-      ),
+    return AppNavigation(
+      index: navigationShell.currentIndex,
+      child: navigationShell,
+      onSelected: (index) {
+        // 切 tab 轻轻一下：手指不盯着屏幕也知道按到了。
+        HapticFeedback.selectionClick();
+        navigationShell.goBranch(
+          index,
+          initialLocation: index == navigationShell.currentIndex,
+        );
+      },
     );
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bjtuselfserviceaio/features/email/email_models.dart';
+import 'package:bjtuselfserviceaio/data/models/email/email_models.dart';
 import 'package:bjtuselfserviceaio/features/email/email_view.dart';
 
 MailSummary _mail(

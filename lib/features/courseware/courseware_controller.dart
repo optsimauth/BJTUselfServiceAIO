@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/model/async_state.dart';
 import '../../data/models/courseware/courseware_model.dart';
 import '../../data/repositories/courseware_repository.dart';
-import 'courseware_tree.dart';
+import '../../data/models/courseware/courseware_tree.dart';
 
 /// 课件页的状态。旧项目 CoursewareViewModel（40 行）+ CoursewareScreen 的展开状态。
 ///

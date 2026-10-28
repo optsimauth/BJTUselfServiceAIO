@@ -5,6 +5,7 @@ import 'package:webview_all/webview_all.dart';
 import '../../app/service_locator.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
 import 'web_navigation.dart';
+import '../../shared/widgets/app_status_view.dart';
 
 /// 直接在 app 里看学校网页版。功能还没做的那部分先这么顶着用。
 ///
@@ -141,19 +142,22 @@ class _WebPageState extends State<WebPage> {
         children: [
           WebViewWidget(controller: _controller),
           if (_error != null)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('加载失败：$_error', textAlign: TextAlign.center),
-                  const SizedBox(height: 8),
-                  FilledButton(onPressed: _load, child: const Text('重试')),
-                  const SizedBox(height: 8),
-                  FilledButton.tonal(
-                    onPressed: _openExternally,
-                    child: const Text('在浏览器中打开'),
-                  ),
-                ],
+            ColoredBox(
+              color: Theme.of(context).colorScheme.surface,
+              child: AppStatusView(
+                icon: Icons.language,
+                title: '网页暂时无法打开',
+                message: _error,
+                action: Wrap(
+                  alignment: WrapAlignment.center,
+                  children: [
+                    FilledButton(onPressed: _load, child: const Text('重试')),
+                    TextButton(
+                      onPressed: _openExternally,
+                      child: const Text('在浏览器中打开'),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../core/constants/api_constants.dart';
 import '../../core/database/database.dart';
 import '../../core/model/common_models.dart';
 import '../../core/network/cookie_manager.dart';
@@ -10,7 +9,6 @@ import '../../core/network/network_exception.dart';
 import '../../core/storage/preferences.dart';
 import '../../core/storage/secure_storage.dart';
 import '../../core/utils/logger.dart';
-import '../../services/captcha/captcha_service.dart';
 import '../models/account/account_model.dart';
 import '../remote/api/auth_api.dart';
 import '../remote/parsers/auth_parser.dart';
@@ -29,20 +27,18 @@ enum SessionState {
 
 /// 登录 / 登出 / 学生信息。整个 APP 唯一的登录入口，也是登录态的唯一持有者。
 ///
-/// 登录只有一条路：CAS 登录页 -> 本地模型识别算式 -> 直接提交，界面不展示验证码。
+/// 登录只有一条路：新版 SSO 表单 -> SM2 密码加密 -> MIS OAuth 回调。
 /// 第一次由用户手输账号密码；之后每次冷启动都用存下来的凭据静默走同一条路
 /// （[restoreSession]）：成功直接进主页，失败就退回登录页等用户手输。
 class AccountRepository {
   AccountRepository({
     required AuthApi api,
-    required CaptchaService captcha,
     required AppCookieManager cookieManager,
     required SecureStorage secureStorage,
     required AppPreferences preferences,
     required AppDatabase database,
     this.onSessionCleared,
   }) : _api = api,
-       _captcha = captcha,
        _cookieManager = cookieManager,
        _secureStorage = secureStorage,
        _preferences = preferences,
@@ -57,15 +53,15 @@ class AccountRepository {
   /// 否则登出再登录会一直用上一个账号的 sessionid 和课程列表。
   final VoidCallback? onSessionCleared;
 
-  /// CAS 每次刷新登录页都会作废旧的 captcha key，识别错了就整体重来一次。
-  static const int maxLoginAttempts = 2;
-
   final AuthApi _api;
-  final CaptchaService _captcha;
   final AppCookieManager _cookieManager;
   final SecureStorage _secureStorage;
   final AppPreferences _preferences;
   final AppDatabase _database;
+
+  Future<void>? _loginInFlight;
+  bool _loggingOut = false;
+  int _sessionVersion = 0;
 
   final ValueNotifier<SessionState> _session = ValueNotifier(
     SessionState.restoring,
@@ -102,7 +98,7 @@ class AccountRepository {
     try {
       final credentials = _secureStorage.cachedCredentials ?? Credentials.empty;
       if (credentials.isValid) {
-        _log.d('用本地凭据自动登录：${credentials.username}');
+        _log.d('用本地凭据自动登录');
         await login(credentials);
       }
     } catch (error) {
@@ -113,26 +109,50 @@ class AccountRepository {
   }
 
   /// 登录。失败直接抛异常，由登录页自己显示。
-  Future<void> login(Credentials credentials) async {
+  Future<void> login(Credentials credentials) {
+    if (_loginInFlight != null || _loggingOut) {
+      return Future.error(StateError('正在登录，请稍候重试'));
+    }
+    return _loginInFlight = _signIn(credentials, _sessionVersion).whenComplete(
+      () {
+        _loginInFlight = null;
+      },
+    );
+  }
+
+  Future<void> _signIn(Credentials credentials, int version) async {
     if (!credentials.isValid) {
       throw const FormatException('学号或密码为空');
     }
-    Object? lastError;
-    for (var attempt = 1; attempt <= maxLoginAttempts; attempt++) {
-      try {
-        await _loginOnce(credentials, attempt: attempt);
-        await _secureStorage.writeCredentials(credentials);
-        _mark(SessionState.loggedIn);
-        return;
-      } catch (error) {
-        lastError = error;
-        _log.w('第 $attempt 次登录失败', error);
-      }
-    }
-    throw lastError ?? StateError('登录失败');
+    await _api.login(credentials);
+    await _loginSecondarySystems();
+    _requireCurrentSession(version);
+    await _secureStorage.writeCredentials(credentials);
+    _requireCurrentSession(version);
+    _mark(SessionState.loggedIn);
+  }
+
+  void _requireCurrentSession(int version) {
+    if (version != _sessionVersion) throw StateError('登录已取消');
   }
 
   Future<void> logout() async {
+    _loggingOut = true;
+    try {
+      await _clearSession();
+    } finally {
+      _loggingOut = false;
+    }
+  }
+
+  Future<void> _clearSession() async {
+    _sessionVersion++;
+    _mark(SessionState.loggedOut);
+    try {
+      await _loginInFlight;
+    } catch (_) {
+      // 已取消的登录收尾后再清理，避免迟到的 Cookie / 凭据复活。
+    }
     await _cookieManager.clear();
     await _secureStorage.clearCredentials();
     await _preferences.clearAllBusinessData();
@@ -142,6 +162,7 @@ class AccountRepository {
   }
 
   Future<StudentProfile> fetchStudentProfile() async {
+    requireLogin();
     final credentials = await _secureStorage.readCredentials();
     final raw = await _api.fetchSsoPage();
     return AuthParser.parseStudentProfile(raw, studentId: credentials.username);
@@ -155,51 +176,7 @@ class AccountRepository {
     }
   }
 
-  /// 单轮登录：已经登录过就直接返回，否则识别验证码并提交。
-  Future<void> _loginOnce(
-    Credentials credentials, {
-    required int attempt,
-  }) async {
-    final ssoPage = await _api.fetchSsoPage();
-    if (AuthParser.isAuthenticated(ssoPage)) {
-      _log.d('会话仍有效，补齐子系统登录');
-      await _loginSecondarySystems();
-      return;
-    }
-
-    final fields = AuthParser.parseLoginFields(ssoPage);
-    if (fields == null) {
-      throw const CaptchaException('CAS 登录页缺少验证码字段');
-    }
-
-    final answer = await _solveCaptcha(fields.captchaKey);
-    final response = await _api.submitCasLogin({
-      'csrfmiddlewaretoken': fields.csrf,
-      'captcha_0': fields.captchaKey,
-      'captcha_1': answer,
-      'loginname': credentials.username,
-      'password': credentials.password,
-      if (fields.next != null) 'next': fields.next!,
-    }, referer: ApiConstants.casLoginPath);
-
-    if (!AuthParser.isAuthenticated(response)) {
-      throw CaptchaException('账号、密码或验证码错误（第 $attempt 次）');
-    }
-    await _loginSecondarySystems();
-  }
-
-  /// 下载验证码图片并本地识别，返回算式答案。
-  Future<String> _solveCaptcha(String captchaKey) async {
-    final bytes = await _api.fetchCaptchaImage(captchaKey: captchaKey);
-    final expression = await _captcha.recognizeExpression(
-      Uint8List.fromList(bytes),
-    );
-    final answer = _captcha.solve(expression);
-    if (answer == null || answer.isEmpty) {
-      throw CaptchaException('验证码算式解析失败：$expression');
-    }
-    return answer;
-  }
+  void dispose() => _session.dispose();
 
   /// 建立课程平台、教务和本科生院的跨站会话。
   Future<void> _loginSecondarySystems() async {

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 
-import 'email_models.dart';
+import '../../models/email/email_models.dart';
 
 abstract final class MailParser {
   static MailboxPageResult parseList(String raw) {

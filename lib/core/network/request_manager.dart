@@ -43,6 +43,11 @@ class RequestManager {
   /// 没登录就抛异常。由 [AccountRepository] 提供，这里只知道调它。
   final void Function() ensureLoggedIn;
 
+  int _sessionVersion = 0;
+
+  /// 退出后旧请求即使晚于下一次登录返回，也不能作为新账号的数据使用。
+  void invalidateSession() => _sessionVersion++;
+
   /// 发一条请求：先过登录门闸，再执行 [send]，Dio 异常统一转成 [NetworkException] 抛出。
   ///
   /// [requireLogin] 传 false 表示这条请求免登录（登录流程自己用）：
@@ -51,13 +56,26 @@ class RequestManager {
     Future<T> Function() send, {
     bool requireLogin = true,
   }) async {
+    final version = _sessionVersion;
     if (requireLogin) {
       ensureLoggedIn();
     }
     try {
-      return await send();
+      final result = await send();
+      if (requireLogin) _requireCurrentSession(version);
+      return result;
     } on DioException catch (error) {
       throw NetworkException.fromDio(error);
+    }
+  }
+
+  void _requireCurrentSession(int version) {
+    ensureLoggedIn();
+    if (version != _sessionVersion) {
+      throw const NetworkException(
+        NetworkErrorKind.unauthorized,
+        '账号会话已更换，请重新刷新',
+      );
     }
   }
 
@@ -146,7 +164,23 @@ class RequestManager {
     Map<String, String>? headers,
     bool requireLogin = true,
   }) {
-    return request<String>(() async {
+    return postFormWithFinalUri(
+      url,
+      form,
+      query: query,
+      headers: headers,
+      requireLogin: requireLogin,
+    ).then((page) => page.body);
+  }
+
+  Future<FetchedText> postFormWithFinalUri(
+    String url,
+    Map<String, dynamic> form, {
+    Map<String, dynamic>? query,
+    Map<String, String>? headers,
+    bool requireLogin = true,
+  }) {
+    return request<FetchedText>(() async {
       final response = await dio.post<String>(
         url,
         queryParameters: query,
@@ -157,7 +191,7 @@ class RequestManager {
           headers: headers,
         ),
       );
-      return response.data ?? '';
+      return FetchedText(body: response.data ?? '', finalUri: response.realUri);
     }, requireLogin: requireLogin);
   }
 

@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/model/async_state.dart';
 import '../../core/utils/logger.dart';
 import '../../data/remote/api/email_api.dart';
-import 'email_models.dart';
+import '../../data/models/email/email_models.dart';
 import 'email_view.dart';
 
 class EmailViewState {

@@ -53,6 +53,7 @@ dependencies:
   table_calendar: ^3.2.1
   intl: ^0.20.3
   webview_all: ^1.4.4
+  gm_crypto: 1.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

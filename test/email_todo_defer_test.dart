@@ -1,7 +1,7 @@
 // 待办邮件的 defer 格式：网页版发的是 Coremail 自己的日期字面量
 // `!!date 'yyyy-MM-dd HH:mm:ss'`，不是数字也不是 ISO 字符串。
 // 传错格式服务端只回 FS_UNKNOWN，错误码里看不出哪错了，所以把格式钉死在这。
-import 'package:bjtuselfserviceaio/features/email/email_models.dart';
+import 'package:bjtuselfserviceaio/data/models/email/email_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

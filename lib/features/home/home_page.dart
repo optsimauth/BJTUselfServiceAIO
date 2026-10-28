@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:table_calendar/table_calendar.dart';
 
 import '../../app/app_router.dart';
 import '../../app/service_locator.dart';
+import '../../data/models/account/account_status.dart';
 import '../../data/models/calendar/calendar_week.dart';
 import '../../data/models/course/course_model.dart';
 import '../../data/repositories/account_repository.dart';
@@ -19,7 +22,6 @@ import 'home_calendar.dart';
 import 'home_event_dialog.dart';
 import 'home_controller.dart';
 import '../../shared/theme/spacing.dart';
-import '../../shared/theme/typography.dart';
 
 /// 首页。旧项目 HomeScreen.kt（887 行）拆成：顶部状态卡 + 日历 + 今日课 + 待办 + 考试。
 class HomePage extends StatefulWidget {
@@ -41,6 +43,7 @@ class _HomePageState extends State<HomePage> {
       courseRepository: locator.courseRepository,
       homeworkRepository: locator.homeworkRepository,
       examRepository: locator.examRepository,
+      statusRepository: locator.statusRepository,
       syncCoordinator: locator.syncCoordinator,
     );
     // 先把本地库里的数据铺到屏幕上，再去网络上同步并对比。
@@ -57,7 +60,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('首页'),
+        title: const Text('今日校园'),
         actions: [
           ListenableBuilder(
             listenable: _controller,
@@ -74,7 +77,7 @@ class _HomePageState extends State<HomePage> {
       // Flutter 3.47 的 Scaffold 没有 bottom 参数，只能自己拼一条在最上面。
       body: Column(
         children: [
-          _SessionBanner(
+          HomeSessionBanner(
             listenable: ServiceScope.of(context).accountRepository.sessionState,
           ),
           Expanded(
@@ -83,20 +86,16 @@ class _HomePageState extends State<HomePage> {
               builder: (context, _) => AsyncView<HomeSummary>(
                 state: _controller.state,
                 onRetry: _controller.refresh,
-                builder: (context, summary) => RefreshIndicator(
-                  onRefresh: _controller.syncAll,
-                  child: ListView(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    children: [
-                      // 顺序有讲究：先给「现在该去哪」，再给日历。
-                      // 日历要挑一天才看得见东西，而下一节课不用点。
-                      _NextClassCard(summary: summary),
-                      if (_NextClassCard.pick(summary, DateTime.now()) != null)
-                        const SizedBox(height: 12),
-                      _HomeCalendar(summary: summary),
-                      const SizedBox(height: 16),
-                      _ChangeBanner(controller: _controller),
-                    ],
+                builder: (context, summary) => StreamBuilder<String>(
+                  // 背景图是偏好里的一个 key，改了要立刻反映到首页。
+                  stream: ServiceScope.of(context).preferences.changes,
+                  builder: (context, _) => HomeDashboard(
+                    summary: summary,
+                    wallpaperPath: ServiceScope.of(context)
+                        .preferences
+                        .backgroundImageUri,
+                    onRefresh: _controller.syncAll,
+                    changes: _ChangeBanner(controller: _controller),
                   ),
                 ),
               ),
@@ -104,6 +103,348 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 首页内容与服务装配分开，缓存与网络状态由页面控制。
+class HomeDashboard extends StatelessWidget {
+  const HomeDashboard({
+    super.key,
+    required this.summary,
+    required this.onRefresh,
+    required this.changes,
+    this.wallpaperPath = '',
+  });
+  final HomeSummary summary;
+  final Future<void> Function() onRefresh;
+  final Widget changes;
+
+  /// 用户自选的背景图（本地路径）。空串 = 没设置。
+  final String wallpaperPath;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: AppLayout.contentMaxWidth),
+      child: LayoutBuilder(
+        builder: (context, constraints) => RefreshIndicator(
+          onRefresh: onRefresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(
+              constraints.maxWidth >= AppLayout.railMinWidth
+                  ? AppSpacing.xl
+                  : AppSpacing.lg,
+            ),
+            children: [
+              if (wallpaperPath.isNotEmpty)
+                _WallpaperCover(path: wallpaperPath),
+              _TodayHeading(summary: summary),
+              const SizedBox(height: AppSpacing.xl),
+              _NextClassCard(summary: summary),
+              if (_NextClassCard.pick(summary, DateTime.now()) != null)
+                const SizedBox(height: AppSpacing.md),
+              _StatusStrip(status: summary.status),
+              const SizedBox(height: AppSpacing.xl),
+              _HomeCalendar(summary: summary),
+              const SizedBox(height: AppSpacing.lg),
+              changes,
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// 用户自选背景图（设置 → 外观 → 背景图）。
+///
+/// 原项目是把图铺在整个 App 底下、文字一律转白；那会牺牲对比度
+/// （`docs/UI_SPEC.md` 第 2 节：无障碍优先于视觉偏好）。这里改成首页顶部一张封面，
+/// 底部渐变回 surface —— 下面的文字仍然落在实色上，2 倍字号和深色模式都不受影响。
+class _WallpaperCover extends StatelessWidget {
+  const _WallpaperCover({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb) return const SizedBox.shrink();
+    final file = File(path);
+    if (!file.existsSync()) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: ClipRRect(
+        borderRadius: AppRadius.lg,
+        child: Stack(
+          children: [
+            Image.file(
+              file,
+              width: double.infinity,
+              height: 168,
+              fit: BoxFit.cover,
+              // 图片被删/损坏时退回纯色，不要把首页打成错误态。
+              errorBuilder: (_, _, _) => SizedBox(
+                height: 168,
+                child: ColoredBox(color: scheme.surfaceContainerHighest),
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      scheme.surface.withValues(alpha: 0),
+                      scheme.surface,
+                    ],
+                    stops: const [0.35, 1],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 账户状态条：未读邮件 / 校园卡余额 / 校园网余额。
+///
+/// 旧项目（`HomeScreen.kt` 的 `StatusInfo`）是三个竖排按钮。按 `docs/UI_SPEC.md`
+/// 第 4 节「指标条」：一组相关数字放进一个容器、用分隔线切分，不做三张同构卡片。
+/// 邮件格可点（去邮箱），余额格没有去处，就不做成按钮的样子。
+class _StatusStrip extends StatelessWidget {
+  const _StatusStrip({required this.status});
+
+  final AccountStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final status = this.status;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+
+    final cells = <Widget>[
+      _StatusCell(
+        icon: Icons.mail_outline,
+        label: '未读邮件',
+        value: _mailText(status?.unreadMail),
+        actionHint: '去邮箱',
+        onTap: () => context.push(AppRoutes.email),
+      ),
+      _StatusCell(
+        icon: Icons.credit_card,
+        label: '校园卡余额',
+        value: _moneyText(status?.ecardBalance),
+        warn: status?.ecardIsLow == true ? '低于 20 元，该充了' : null,
+      ),
+      _StatusCell(
+        icon: Icons.wifi,
+        label: '校园网余额',
+        value: _moneyText(status?.netBalance),
+        warn: status?.netIsEmpty == true ? '余额为 0，可能断网' : null,
+      ),
+    ];
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // 2 倍字号或极窄屏下三个数字挤一行会各自被截断，改成竖排三行。
+            final stacked = textScale >= 1.5 || constraints.maxWidth < 300;
+            if (stacked) {
+              return Column(
+                children: [
+                  for (var i = 0; i < cells.length; i++) ...[
+                    if (i > 0)
+                      Divider(
+                        height: AppSpacing.xl,
+                        indent: AppSpacing.md,
+                        endIndent: AppSpacing.md,
+                      ),
+                    cells[i],
+                  ],
+                ],
+              );
+            }
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < cells.length; i++) ...[
+                    if (i > 0)
+                      VerticalDivider(width: 1, color: scheme.outlineVariant),
+                    Expanded(child: cells[i]),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusCell extends StatelessWidget {
+  const _StatusCell({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.warn,
+    this.actionHint,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  /// 需要提醒的一句（余额不足之类），没有就不占位。
+  final String? warn;
+
+  /// 可点格子右下角给一句动词提示，说明点下去会发生什么。
+  final String? actionHint;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final hint = warn;
+    final action = actionHint;
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: AppSpacing.lg, color: scheme.onSurfaceVariant),
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          if (hint != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              hint,
+              maxLines: 2,
+              style: theme.textTheme.labelSmall?.copyWith(color: scheme.error),
+            ),
+          ] else if (action != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              action,
+              maxLines: 1,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.primary,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    if (onTap == null) {
+      return content;
+    }
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.md,
+      // 48 是触控下限；格子本身已经比它高，这里只是兜底。
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: AppTouch.minimum),
+        child: content,
+      ),
+    );
+  }
+}
+
+String _mailText(int? count) => switch (count) {
+  null => '未知',
+  0 => '暂无未读',
+  final value => '$value 封',
+};
+
+/// 学校给的是字符串：能当数字就当金额格式化，不能就原样显示。
+String _moneyText(String? raw) {
+  if (raw == null) return '未知';
+  final value = double.tryParse(raw.trim());
+  return value == null ? raw : '¥${value.toStringAsFixed(2)}';
+}
+
+class _TodayHeading extends StatelessWidget {
+  const _TodayHeading({required this.summary});
+  final HomeSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    final name = summary.profile.name;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${now.month}月${now.day}日 · ${weekTitleOf(summary.currentWeek)}',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          name.isEmpty ? '今天的安排' : '$name，今天的安排',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            ActionChip(
+              avatar: const Icon(Icons.calendar_view_week_outlined),
+              label: const Text('打开课表'),
+              onPressed: () => context.push(AppRoutes.course),
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.edit_note_outlined),
+              label: const Text('查看作业'),
+              onPressed: () => context.push(AppRoutes.homework),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -149,7 +490,7 @@ class _NextClassCard extends StatelessWidget {
     final color = AppColors.forCourse(course.courseId);
     final time = _timeRangeOf(course);
 
-    return _Shell(
+    return _shell(
       scheme: scheme,
       borderColor: target.ongoing ? color : null,
       child: Row(
@@ -172,21 +513,17 @@ class _NextClassCard extends StatelessWidget {
               children: [
                 Text(
                   course.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   [
-                    if (target.ongoing) '正在上',
+                    target.ongoing ? '正在上课' : '下一节课',
                     if (course.place.isNotEmpty) course.place,
                     if (course.teacher.isNotEmpty) course.teacher,
                     if (time.isNotEmpty) time,
                   ].join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
@@ -198,7 +535,7 @@ class _NextClassCard extends StatelessWidget {
     );
   }
 
-  Widget _Shell({
+  Widget _shell({
     required ColorScheme scheme,
     required Widget child,
     Color? borderColor,
@@ -208,9 +545,10 @@ class _NextClassCard extends StatelessWidget {
     decoration: BoxDecoration(
       color: scheme.surfaceContainerLow,
       borderRadius: AppRadius.lg,
-      border: borderColor == null
-          ? null
-          : Border.all(color: borderColor, width: 2),
+      border: Border.all(
+        color: borderColor ?? scheme.outlineVariant,
+        width: borderColor == null ? 1 : 2,
+      ),
     ),
     child: child,
   );
@@ -218,8 +556,8 @@ class _NextClassCard extends StatelessWidget {
 
 /// 首页顶部那一条：登录中是一条 2px 细进度条，登录失效是一条可点的灰条。
 /// 本地数据一直在下面照常显示，不因为登录没成功就清空或挡住。
-class _SessionBanner extends StatelessWidget {
-  const _SessionBanner({required this.listenable});
+class HomeSessionBanner extends StatelessWidget {
+  const HomeSessionBanner({super.key, required this.listenable});
 
   final ValueListenable<SessionState> listenable;
 
@@ -244,31 +582,34 @@ class _SessionBanner extends StatelessWidget {
           if (restoring) const LinearProgressIndicator(minHeight: 2),
           InkWell(
             onTap: restoring ? null : () => context.push(AppRoutes.login),
-            child: SizedBox(
-              // 44 是 HIG 的最小触控高度。原来 28px 看着紧凑，
-              // 但这一整条都带 onTap —— 手指粗一点就点不中。
-              height: 44,
-              child: Row(
-                children: [
-                  const SizedBox(width: 12),
-                  if (!restoring)
-                    Icon(
-                      Icons.cloud_off_outlined,
-                      size: 16,
-                      color: scheme.onSurfaceVariant,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: AppTouch.minimum),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 12),
+                    if (!restoring)
+                      Icon(
+                        Icons.cloud_off_outlined,
+                        size: 16,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        restoring ? '正在登录…' : '登录已失效，点此重新登录',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
-                  const SizedBox(width: 8),
-                  Text(
-                    restoring ? '正在登录…' : '登录已失效，点此重新登录',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  if (!restoring)
-                    Icon(
-                      Icons.chevron_right,
-                      size: 16,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                ],
+                    if (!restoring)
+                      Icon(
+                        Icons.chevron_right,
+                        size: 16,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -292,14 +633,11 @@ String _weekTitle(
   return weekTitleOf(week);
 }
 
-/// 星期行样式：字号固定不跟随全局缩放，否则窄屏放不下三字标签。
+/// 星期行复用主题标签字号，日历行高随系统字号增长。
 DaysOfWeekStyle _daysOfWeekStyle(BuildContext context) {
   final scheme = Theme.of(context).colorScheme;
-  final style = TextStyle(
-    fontSize: AppTypography.sizeFixed(12),
-    fontWeight: FontWeight.w600,
-    color: scheme.onSurfaceVariant,
-  );
+  final style = Theme.of(context).textTheme.labelSmall!
+      .copyWith(fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant);
   return DaysOfWeekStyle(weekdayStyle: style, weekendStyle: style);
 }
 
@@ -354,11 +692,11 @@ class _HomeCalendarState extends State<_HomeCalendar> {
               eventLoader: (day) => eventsOn(events, day),
               startingDayOfWeek: StartingDayOfWeek.monday,
               calendarFormat: CalendarFormat.week,
-              rowHeight: 72,
+              rowHeight: MediaQuery.textScalerOf(context).scale(56),
               availableCalendarFormats: const {CalendarFormat.week: '周'},
               // table_calendar 默认星期行只有 16px，全局字号放大后中文「周一」
               // 会被裁掉并压到日期格上。这里给足行高并用紧凑字号。
-              daysOfWeekHeight: 40,
+              daysOfWeekHeight: MediaQuery.textScalerOf(context).scale(40),
               daysOfWeekStyle: _daysOfWeekStyle(context),
               headerStyle: HeaderStyle(
                 titleCentered: true,
@@ -455,7 +793,11 @@ class _SelectedDayAgenda extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _AgendaHeading(day: selectedDay, week: _selectedWeek()),
+        _AgendaHeading(
+          day: selectedDay,
+          week: _selectedWeek(),
+          isToday: isSameDay(selectedDay, DateTime.now()),
+        ),
         for (final event in dayEvents)
           _AgendaTile(
             color: _eventColor(context, event.type),
@@ -514,18 +856,25 @@ class _SelectedDayAgenda extends StatelessWidget {
 }
 
 class _AgendaHeading extends StatelessWidget {
-  const _AgendaHeading({required this.day, required this.week});
+  const _AgendaHeading({
+    required this.day,
+    required this.week,
+    this.isToday = false,
+  });
 
   final DateTime day;
 
   /// null = 假期周（国庆那种），周数不推进，不能硬写成「第 N 周」。
   final int? week;
 
+  /// 选中的就是今天时，日期与周次页面顶部已经写过一次，不再重复。
+  final bool isToday;
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: AppSpacing.sm),
     child: Text(
-      '${day.month}月${day.day}日 · ${weekTitleOf(week)}',
+      isToday ? '今天' : '${day.month}月${day.day}日 · ${weekTitleOf(week)}',
       style: Theme.of(context).textTheme.titleMedium,
     ),
   );
@@ -633,7 +982,7 @@ class _CalendarDay extends StatelessWidget {
                 fontWeight: isToday ? FontWeight.w700 : null,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: AppSpacing.xs),
             _CountMarkers(counts: _countsByType()),
           ],
         ),
@@ -674,11 +1023,10 @@ class _CountMarkers extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _EventDot(color: _dotColor(entry.key, scheme), size: 6),
-                    const SizedBox(width: 2),
+                    const SizedBox(width: AppSpacing.xs),
                     Text(
                       '${entry.value}',
-                      style: TextStyle(
-                        fontSize: AppTypography.sizeFixed(12),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         height: 1,
                         fontWeight: FontWeight.w700,
                         color: scheme.onSurfaceVariant,
@@ -738,7 +1086,7 @@ class _LegendItem extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       _EventDot(color: color),
-      const SizedBox(width: 5),
+      const SizedBox(width: AppSpacing.xs),
       Text(label, style: Theme.of(context).textTheme.bodySmall),
     ],
   );

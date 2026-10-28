@@ -57,7 +57,7 @@ abstract final class AppTheme {
   static ThemeData light({Color? dynamicSeed}) => _build(
     ColorScheme.fromSeed(
       seedColor: dynamicSeed ?? AppColors.brand,
-      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+      dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
     ),
   );
 
@@ -65,11 +65,12 @@ abstract final class AppTheme {
     ColorScheme.fromSeed(
       seedColor: dynamicSeed ?? AppColors.brand,
       brightness: Brightness.dark,
-      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+      dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
     ),
   );
 
   static ThemeData _build(ColorScheme scheme) {
+    scheme = _withNeutralSurfaces(scheme);
     final base = ThemeData(
       colorScheme: scheme,
       useMaterial3: true,
@@ -99,9 +100,7 @@ abstract final class AppTheme {
         decorationColor: scheme.onPrimary,
       ),
       scaffoldBackgroundColor: scheme.surface,
-      // 卡片是这个 app 里唯一的分组手段（列表、日程、课件全靠它分区），
-      // 原来只有「无阴影 + 比背景亮一丁点」，看着就是浮在纸上的一片字。
-      // M3 的 outlined card 写法：抬亮填充 + 一根 1px 分隔线，浅色深色都成立。
+      // 借鉴 Shadcn 的实色面板与细边框，校园蓝留给操作与选中状态。
       cardTheme: base.cardTheme.copyWith(
         color: scheme.surfaceContainerLow,
         surfaceTintColor: AppColors.transparent,
@@ -114,20 +113,21 @@ abstract final class AppTheme {
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: scheme.surfaceContainerHigh,
+        backgroundColor: scheme.surfaceContainerLow,
         surfaceTintColor: AppColors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.sheet),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.sheet,
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
         titleTextStyle: textTheme.titleLarge,
         contentTextStyle: textTheme.bodyMedium,
       ),
-      // 全屏弹层自带圆角和拖拽把手：原来是一条贴边直上直下的方块，
-      // 跟整体圆角语言完全不是一路。
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surfaceContainerLow,
         surfaceTintColor: AppColors.transparent,
         showDragHandle: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: AppRadius.sheet.topLeft),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -147,12 +147,33 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: scheme.surface,
+        backgroundColor: scheme.surfaceContainerLow,
         surfaceTintColor: AppColors.transparent,
         elevation: 0,
-        height: 64,
+        height: 80,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        indicatorColor: scheme.primaryContainer,
         indicatorShape: RoundedRectangleBorder(borderRadius: AppRadius.control),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? scheme.onPrimaryContainer
+                : scheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: scheme.surfaceContainerLow,
+        indicatorColor: scheme.primaryContainer,
+        indicatorShape: RoundedRectangleBorder(borderRadius: AppRadius.control),
+        selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
+        unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+        selectedLabelTextStyle: textTheme.labelLarge?.copyWith(
+          color: scheme.onSurface,
+        ),
+        unselectedLabelTextStyle: textTheme.labelLarge?.copyWith(
+          color: scheme.onSurfaceVariant,
+        ),
       ),
       // 一根线现在是卡片之间唯一的分隔手段，别让它比卡片边框更重。
       dividerTheme: DividerThemeData(
@@ -164,13 +185,62 @@ abstract final class AppTheme {
         side: BorderSide(color: scheme.outlineVariant),
         backgroundColor: scheme.surfaceContainerLow,
         labelStyle: textTheme.labelLarge,
-        shape: const StadiumBorder(),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.chip),
       ),
-      listTileTheme: const ListTileThemeData(
-        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.xs,
+        ),
+        minVerticalPadding: AppSpacing.md,
+        titleTextStyle: textTheme.titleSmall,
+        subtitleTextStyle: textTheme.bodySmall?.copyWith(
+          color: scheme.onSurfaceVariant,
+        ),
+        iconColor: scheme.onSurfaceVariant,
+        selectedColor: scheme.onPrimaryContainer,
+        selectedTileColor: scheme.primaryContainer,
       ),
-      // 统一按钮几何：同一个页面上主按钮 52 高、次按钮 14 圆角，
-      // 否则同一个 Card 里的按钮看着像两个 app 拼起来的。
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(AppTouch.minimum, AppTouch.minimum),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.control),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.control),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerLow),
+          surfaceTintColor: const WidgetStatePropertyAll(AppColors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: AppRadius.md,
+              side: BorderSide(color: scheme.outlineVariant),
+            ),
+          ),
+        ),
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: scheme.surfaceContainerLow,
+        surfaceTintColor: AppColors.transparent,
+        headerBackgroundColor: scheme.surfaceContainerLow,
+        headerForegroundColor: scheme.onSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.sheet,
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: scheme.primary,
+        linearTrackColor: scheme.surfaceContainerHighest,
+        borderRadius: AppRadius.bar,
+      ),
+      // 视觉采用较小圆角，触控区域仍保留 48dp 下限。
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(0, 48),
@@ -180,27 +250,44 @@ abstract final class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 48),
-          side: BorderSide(color: scheme.outlineVariant),
+          side: BorderSide(color: scheme.outline),
           shape: RoundedRectangleBorder(borderRadius: AppRadius.control),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          minimumSize: const Size(0, 40),
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.md),
+          minimumSize: const Size(0, 48),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.control),
         ),
       ),
-      // 输入框/下拉框描边默认太深，正文一挨上去像表格线；统一成弱一档的分隔线色。
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: SegmentedButton.styleFrom(
+          minimumSize: const Size(0, AppTouch.minimum),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.control),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainerLow,
+        surfaceTintColor: AppColors.transparent,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.md,
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+      ),
+      // 交互边框用 outline；分组分隔线才使用 outlineVariant。
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surfaceContainerLowest,
-        border: OutlineInputBorder(borderRadius: AppRadius.md),
+        border: OutlineInputBorder(borderRadius: AppRadius.control),
         enabledBorder: OutlineInputBorder(
-          borderRadius: AppRadius.md,
-          borderSide: BorderSide(color: scheme.outlineVariant),
+          borderRadius: AppRadius.control,
+          // 输入框描边要有 3:1 对比度（docs/UI_SPEC.md 第 2 节 a11y-contrast-ui）：
+          // 用 outline，不用更淡的 outlineVariant —— 那是给分隔线用的。
+          borderSide: BorderSide(color: scheme.outline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: AppRadius.md,
+          borderRadius: AppRadius.control,
           borderSide: BorderSide(color: scheme.primary, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -225,6 +312,26 @@ abstract final class AppTheme {
           TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
         },
       ),
+    );
+  }
+
+  static ColorScheme _withNeutralSurfaces(ColorScheme scheme) {
+    final neutral = scheme.brightness == Brightness.dark
+        ? AppColors.neutralDark
+        : AppColors.neutralLight;
+    return scheme.copyWith(
+      surface: neutral.surface,
+      onSurface: neutral.onSurface,
+      onSurfaceVariant: neutral.onSurfaceVariant,
+      surfaceDim: neutral.surfaceDim,
+      surfaceBright: neutral.surfaceBright,
+      surfaceContainerLowest: neutral.surfaceContainerLowest,
+      surfaceContainerLow: neutral.surfaceContainerLow,
+      surfaceContainer: neutral.surfaceContainer,
+      surfaceContainerHigh: neutral.surfaceContainerHigh,
+      surfaceContainerHighest: neutral.surfaceContainerHighest,
+      outline: neutral.outline,
+      outlineVariant: neutral.outlineVariant,
     );
   }
 }

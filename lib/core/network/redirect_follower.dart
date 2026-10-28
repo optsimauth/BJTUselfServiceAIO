@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
+import '../constants/api_constants.dart';
 import '../utils/logger.dart';
 
 /// 手动跟随重定向的 dio 拦截器。
@@ -49,6 +50,23 @@ class RedirectFollower extends Interceptor {
       handler.next(response);
       return;
     }
+    if (isUnsafeAuthRedirect(response.requestOptions.uri, target)) {
+      final from = response.requestOptions.uri;
+      _log.w(
+        '拒绝不可信认证跳转：${from.host}${from.path} -> '
+        '${target.host}${target.path}',
+      );
+      handler.reject(
+        DioException(
+          requestOptions: response.requestOptions,
+          type: DioExceptionType.badResponse,
+          message: '统一认证重定向地址不可信，已停止登录：'
+              '${from.host}${from.path} -> ${target.host}${target.path}',
+        ),
+        true,
+      );
+      return;
+    }
     if (isHopLimitReached(response, maxHops)) {
       handler.reject(tooManyRedirectsError(response), true);
       return;
@@ -72,6 +90,26 @@ class RedirectFollower extends Interceptor {
   /// 已经跟满 [limit] 跳还在跳，就是死循环或站点配置坏了。
   bool isHopLimitReached(Response<dynamic> response, int limit) =>
       redirectHopOf(response.requestOptions) >= limit;
+
+  bool isUnsafeAuthRedirect(Uri source, Uri target) {
+    const hosts = {'mis.bjtu.edu.cn', 'sso.bjtu.edu.cn', 'cas.bjtu.edu.cn'};
+    if (!hosts.contains(source.host) ||
+        (source.host == 'mis.bjtu.edu.cn' &&
+            !source.path.startsWith('/auth/'))) {
+      return false;
+    }
+    if (target.userInfo.isNotEmpty) return true;
+    final platform = Uri.parse(ApiConstants.coursePlatformHost);
+    if (target.scheme == platform.scheme &&
+        target.host == platform.host &&
+        target.port == platform.port) {
+      // Trusted authentication hosts hand the session to this HTTP-only legacy service.
+      return false;
+    }
+    return target.scheme != 'https' ||
+        !hosts.contains(target.host) ||
+        target.port != 443;
+  }
 
   // ---- 叶子函数：判断 ----
 
@@ -174,7 +212,7 @@ class RedirectFollower extends Interceptor {
   Future<Response<dynamic>> refetch(Response<dynamic> response, Uri target) {
     final options = response.requestOptions;
     final hop = redirectHopOf(options) + 1;
-    _log.d('跟随第 $hop 跳 -> $target');
+    _log.d('跟随第 $hop 跳 -> ${target.host}${target.path}');
     final dio = _dio;
     if (dio == null) {
       return Future<Response<dynamic>>.error(

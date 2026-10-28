@@ -8,6 +8,7 @@ import '../../data/repositories/account_repository.dart';
 import 'buttons/app_buttons.dart';
 import 'error_text.dart';
 import 'loading/app_loading.dart';
+import 'app_status_view.dart';
 
 /// AsyncState -> 界面。每个页面不用再手写 loading / error / empty 三分支。
 class AsyncView<T> extends StatelessWidget {
@@ -50,26 +51,13 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Theme.of(context).colorScheme.error,
-              size: 40,
-            ),
-            const SizedBox(height: 12),
-            Text(errorText(error), textAlign: TextAlign.center),
-            if (onRetry != null) ...[
-              const SizedBox(height: 16),
-              FilledButton(onPressed: onRetry, child: const Text('重试')),
-            ],
-          ],
-        ),
-      ),
+    return AppStatusView(
+      icon: Icons.error_outline,
+      title: '暂时无法加载',
+      message: errorText(error),
+      action: onRetry == null
+          ? null
+          : FilledButton(onPressed: onRetry, child: const Text('重试')),
     );
   }
 }
@@ -87,57 +75,23 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final session = ServiceScope.of(context).accountRepository.sessionState;
     if (session.value != SessionState.loggedIn) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.lock_outline, size: 40),
-            const SizedBox(height: 12),
-            Text('登录后查看', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 4),
-            Text(
-              '本地还没有这部分数据',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            PrimaryButton(
-              label: '去登录',
-              icon: Icons.login,
-              onPressed: () => context.push(AppRoutes.login),
-            ),
-          ],
+      return AppStatusView(
+        icon: Icons.lock_outline,
+        title: '登录后查看',
+        message: '本地还没有这部分数据',
+        action: PrimaryButton(
+          label: '去登录',
+          icon: Icons.login,
+          onPressed: () => context.push(AppRoutes.login),
         ),
       );
     }
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.inbox_outlined,
-              size: 40,
-              color: theme.colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            Text('这里还没有内容', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 4),
-            Text(
-              '换个筛选条件，或者下拉刷新再看看',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const AppStatusView(
+      icon: Icons.inbox_outlined,
+      title: '这里还没有内容',
+      message: '换个筛选条件，或者下拉刷新再看看',
     );
   }
 }

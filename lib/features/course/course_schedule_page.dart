@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../shared/widgets/page_width.dart';
+
 import '../../app/service_locator.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/model/async_state.dart';
@@ -40,8 +42,8 @@ class _CourseSchedulePageState extends State<CourseSchedulePage> {
   @override
   void initState() {
     super.initState();
-    final locator = ServiceScope.of(context);
-    _controller = widget.controller ?? locator.courseController;
+    _controller =
+        widget.controller ?? ServiceScope.of(context).courseController;
     _controller.syncMessage.addListener(_showSyncMessage);
     // 周次不持久化：每次进课表都从当前周开始。
     _controller.showCurrentWeek();
@@ -85,38 +87,41 @@ class _CourseSchedulePageState extends State<CourseSchedulePage> {
           ),
         ],
       ),
-      body: ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) => Column(
-          children: [
-            _ScheduleToolbar(controller: _controller),
-            Expanded(
-              child: AsyncView<List<Course>>(
-                state: _controller.state,
-                onRetry: _controller.refresh,
-                loadingMessage: '正在同步课表…',
-                builder: (context, _) => Column(
-                  children: [
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: _controller.refresh,
-                        child: ScheduleCalendar(
-                          board: _controller.board,
-                          currentWeek: _controller.currentWeek,
-                          selectedWeek: _controller.selectedWeek,
-                          onCourseTap: _showCourseDetail,
-                          emptyBuilder: (context) => EmptyScheduleView(
-                            onPickAnotherWeek: _controller.resetWeek,
+      body: PageWidth(
+        maxWidth: AppLayout.boardMaxWidth,
+        child: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) => Column(
+            children: [
+              _ScheduleToolbar(controller: _controller),
+              Expanded(
+                child: AsyncView<List<Course>>(
+                  state: _controller.state,
+                  onRetry: _controller.refresh,
+                  loadingMessage: '正在同步课表…',
+                  builder: (context, _) => Column(
+                    children: [
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: _controller.refresh,
+                          child: ScheduleCalendar(
+                            board: _controller.board,
+                            currentWeek: _controller.currentWeek,
+                            selectedWeek: _controller.selectedWeek,
+                            onCourseTap: _showCourseDetail,
+                            emptyBuilder: (context) => EmptyScheduleView(
+                              onPickAnotherWeek: _controller.resetWeek,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    _UnplacedHint(courses: _controller.unplacedCourses),
-                  ],
+                      _UnplacedHint(courses: _controller.unplacedCourses),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -150,17 +155,31 @@ class _CourseSchedulePageState extends State<CourseSchedulePage> {
   }
 
   /// 导出课表为 .ics，落到系统下载目录。
+  ///
+  /// 导出前让用户确认「第 1 教学周的周一」：所有事件的日期都是从这个锚点加上
+  /// 「第几周 × 7 天」算出来的，锚点错一周，整张日历就整体错位。
+  /// 校历在手上时锚点是确定的（提示来自校历）；没有校历时是按当前周倒推的，
+  /// 更要让用户看一眼、必要时前后挪一周。这个确认步对应旧项目 #29 的做法。
   Future<void> _exportIcs() async {
     final courses = _controller.exportableCourses;
     if (courses.isEmpty) {
       _toast('这个学期还没有能导出的课');
       return;
     }
+    final firstMonday = await showDialog<DateTime>(
+      context: context,
+      builder: (_) => _FirstWeekMondayDialog(
+        monday: _controller.firstWeekMonday(),
+        fromCalendar: _controller.calendar != null,
+        week: _controller.currentWeek,
+      ),
+    );
+    if (firstMonday == null || !mounted) return;
     setState(() => _exporting = true);
     try {
       final ics = ScheduleIcs.build(
         courses: courses,
-        firstWeekMonday: _controller.firstWeekMonday(),
+        firstWeekMonday: firstMonday,
         calendarName: '课程表 · ${_controller.term.label}',
       );
       final path = await ServiceScope.of(context).downloadService.saveBytes(
@@ -299,8 +318,9 @@ class _WeekMenu extends StatelessWidget {
           vertical: AppSpacing.xs,
         ),
         decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          borderRadius: AppRadius.sheet,
+          color: scheme.surfaceContainerLow,
+          borderRadius: AppRadius.control,
+          border: Border.all(color: scheme.outlineVariant),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -309,7 +329,7 @@ class _WeekMenu extends StatelessWidget {
               controller.selectedWeekLabel,
               style: Theme.of(context).textTheme.labelLarge,
             ),
-            const SizedBox(width: 2),
+            const SizedBox(width: AppSpacing.xs),
             Icon(
               Icons.arrow_drop_down,
               size: 18,
@@ -511,7 +531,7 @@ class _DetailRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 18, color: scheme.onSurfaceVariant),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.md),
           SizedBox(
             width: 40,
             child: Text(
@@ -523,6 +543,106 @@ class _DetailRow extends StatelessWidget {
           Expanded(child: SelectableText(value)),
         ],
       ),
+    );
+  }
+}
+
+/// 导出 .ics 前确认「第 1 教学周的周一」。
+///
+/// 这个锚点决定所有事件的日期：`第 n 周 + 周几` 全靠它换算。
+/// 校历在手时它是确定的；没有校历时是按当前周倒推的，可能差一周，
+/// 所以给「提前 / 推后一周」两个按钮，让人对一眼校历就能改。
+class _FirstWeekMondayDialog extends StatefulWidget {
+  const _FirstWeekMondayDialog({
+    required this.monday,
+    required this.fromCalendar,
+    required this.week,
+  });
+
+  final DateTime monday;
+  final bool fromCalendar;
+  final int week;
+
+  @override
+  State<_FirstWeekMondayDialog> createState() => _FirstWeekMondayDialogState();
+}
+
+class _FirstWeekMondayDialogState extends State<_FirstWeekMondayDialog> {
+  late DateTime _monday = widget.monday;
+
+  static const List<String> _weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
+
+  String get _label =>
+      '${_monday.year} 年 ${_monday.month} 月 ${_monday.day} 日'
+      '（周${_weekdayNames[_monday.weekday - 1]}）';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return AlertDialog(
+      title: const Text('确认开学第一周'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '第 1 教学周的周一',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _label,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            widget.fromCalendar
+                ? '日期来自校历，一般不用改。'
+                : '没有读到校历，这个日期是按当前第 ${widget.week} 周倒推的，'
+                      '可能差一周，请对一下校历。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: widget.fromCalendar
+                  ? scheme.onSurfaceVariant
+                  : scheme.error,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => setState(
+                  () => _monday = _monday.subtract(const Duration(days: 7)),
+                ),
+                icon: const Icon(Icons.chevron_left),
+                label: const Text('提前一周'),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: () => setState(
+                  () => _monday = _monday.add(const Duration(days: 7)),
+                ),
+                icon: const Icon(Icons.chevron_right),
+                label: const Text('推后一周'),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _monday),
+          child: const Text('导出'),
+        ),
+      ],
     );
   }
 }

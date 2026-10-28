@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/widgets/page_width.dart';
+
 import '../../app/service_locator.dart';
 import '../../core/model/async_state.dart';
 import '../../data/models/classroom/classroom_model.dart';
@@ -8,9 +10,9 @@ import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
 import '../course/lesson_period.dart';
 import 'classroom_controller.dart';
+import 'classroom_planner.dart';
 import 'classroom_room_view.dart';
 import '../../shared/theme/spacing.dart';
-import '../../shared/theme/typography.dart';
 
 /// 一栋教学楼的**教室占用课表**。
 ///
@@ -60,6 +62,23 @@ class _ClassroomPageState extends State<ClassroomPage> {
     super.dispose();
   }
 
+  /// 打开「空教室规划」。数据就用当前这一周的课表，不额外发请求。
+  Future<void> _showPlanner(BuildContext context) async {
+    final status = _controller.status;
+    if (status == null || status.rooms.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('还没查到教室占用，先刷新一次')));
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) =>
+          _PlannerSheet(rooms: status.rooms, weekday: _controller.weekday),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,16 +98,32 @@ class _ClassroomPageState extends State<ClassroomPage> {
           ),
         ],
       ),
-      body: ListenableBuilder(
+      // 整页只有一个主操作：给「连续几节」找一条楼层变动最小的自习路线。
+      floatingActionButton: ListenableBuilder(
         listenable: _controller,
-        builder: (context, _) => AsyncView<ClassroomWeekStatus>(
-          state: _controller.statusState,
-          onRetry: _controller.load,
-          loadingMessage: '正在查教室占用…',
-          isEmpty: (status) => status.rooms.isEmpty,
-          emptyBuilder: (_) =>
-              EmptyClassroomView(buildingName: widget.building.name),
-          builder: (context, _) => _ClassroomBody(controller: _controller),
+        builder: (context, _) {
+          final rooms = _controller.rooms();
+          if (rooms.isEmpty) return const SizedBox.shrink();
+          return FloatingActionButton.extended(
+            onPressed: () => _showPlanner(context),
+            icon: const Icon(Icons.alt_route),
+            label: const Text('规划空教室'),
+          );
+        },
+      ),
+      body: PageWidth(
+        maxWidth: AppLayout.boardMaxWidth,
+        child: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) => AsyncView<ClassroomWeekStatus>(
+            state: _controller.statusState,
+            onRetry: _controller.load,
+            loadingMessage: '正在查教室占用…',
+            isEmpty: (status) => status.rooms.isEmpty,
+            emptyBuilder: (_) =>
+                EmptyClassroomView(buildingName: widget.building.name),
+            builder: (context, _) => _ClassroomBody(controller: _controller),
+          ),
         ),
       ),
     );
@@ -191,7 +226,7 @@ class _WeekBar extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: AppSpacing.xs),
           Text(
             [
               '$weekdayName · $total 间教室里有 $free 间一节没排',
@@ -244,49 +279,64 @@ class _WeekdayPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.sm,
-      ),
-      child: Row(
-        children: [
-          Text(
-            '看哪一天',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+    Widget pill(int weekday) => _DayPill(
+      label: SchedulePeriods.weekdayShortNames[weekday - 1],
+      selected: controller.weekday == weekday,
+      isToday: controller.isCurrentWeek && weekday == controller.todayWeekday,
+      onTap: () => controller.setWeekday(weekday),
+    );
+    final days = [
+      for (var weekday = 1; weekday <= ClassroomStatus.weekdayCount; weekday++)
+        pill(weekday),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 命中区要求 48，七个就是 336：手机窄屏上再加一段说明文字就放不下，
+        // 周日会被挤到屏幕外，得横着划才找得到。窄屏直接去掉说明，七天平分整行。
+        final compact = constraints.maxWidth < 420;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            compact ? AppSpacing.sm : AppSpacing.lg,
+            0,
+            compact ? AppSpacing.sm : AppSpacing.lg,
+            AppSpacing.sm,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (
-                    var weekday = 1;
-                    weekday <= ClassroomStatus.weekdayCount;
-                    weekday++
-                  )
-                    Padding(
-                      padding: const EdgeInsets.only(left: AppSpacing.xs),
-                      child: _DayPill(
-                        label: SchedulePeriods.weekdayShortNames[weekday - 1],
-                        selected: controller.weekday == weekday,
-                        isToday:
-                            controller.isCurrentWeek &&
-                            weekday == controller.todayWeekday,
-                        onTap: () => controller.setWeekday(weekday),
+          child: compact
+              ? Row(
+                  children: [
+                    for (final day in days) Expanded(child: Center(child: day)),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Text(
+                      '看哪一天',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (final day in days)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: AppSpacing.xs,
+                                ),
+                                child: day,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -307,26 +357,34 @@ class _DayPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: AppRadius.sheet,
-      child: Container(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? scheme.primary : scheme.surfaceContainerHighest,
-          borderRadius: AppRadius.sheet,
-          // 看别的周时「今天」没有意义，所以描边只在看本周时出现。
-          border: isToday && !selected
-              ? Border.all(color: scheme.primary)
-              : null,
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
+    // 视觉上还是 32 的小圆片（一排 7 个要放得下），但命中区域不能只有 32：
+    // 视觉尺寸和触控目标是两件事，先用 AppTouch.minimum 撑到 48 再画圆片。
+    return SizedBox(
+      width: AppTouch.minimum,
+      height: AppTouch.minimum,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.control,
+        child: Center(
+          child: Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? scheme.primary : scheme.surfaceContainerLow,
+              borderRadius: AppRadius.control,
+              // 看别的周时「今天」没有意义，所以描边只在看本周时出现。
+              border: isToday && !selected
+                  ? Border.all(color: scheme.primary)
+                  : null,
+            ),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ),
@@ -500,23 +558,29 @@ class _RoomCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  used == null
-                      ? '此刻人数未知'
-                      : '$used/${view.capacity} 人 · ${(view.occupancy * 100).round()}%',
-                  // 这行是这一栏最重要的数据（还有多少空位），不是脚注：
-                  // labelSmall 在大屏上小得几乎看不见。数字等宽，
-                  // 人数刷新时右边缘不跳。
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                const SizedBox(width: AppSpacing.sm),
+                // 右边这串是这一栏最该看清的数字，但它也会变长：
+                // 2 倍字号下「90/90 人 · 100%」比整行还宽。给它 Flexible，
+                // 装不下就换行，而不是把整行撑出屏幕。
+                Flexible(
+                  child: Text(
+                    used == null
+                        ? '此刻人数未知'
+                        : '$used/${view.capacity} 人 · ${(view.occupancy * 100).round()}%',
+                    textAlign: TextAlign.end,
+                    // 这行是这一栏最重要的数据（还有多少空位），不是脚注：
+                    // labelSmall 在大屏上小得几乎看不见。数字等宽，
+                    // 人数刷新时右边缘不跳。
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
                 for (
@@ -531,6 +595,11 @@ class _RoomCard extends StatelessWidget {
                       state: view.stateAt(weekday, section),
                       // 「现在这一节」比「第几格」有用，所以今天此刻有课的格子描红边。
                       isNow: isToday && currentSection == section,
+                      // 手机窄屏一格不到 48 宽，两行字里的时间段会被压到 7px 上下，
+                      // 谁也看不清。窄屏只留节次号 —— 学生本来就知道第几节是几点。
+                      showTime:
+                          MediaQuery.sizeOf(context).width >=
+                          _PeriodCell.timeLabelMinWidth,
                     ),
                   ),
               ],
@@ -550,13 +619,20 @@ class _PeriodCell extends StatelessWidget {
     required this.section,
     required this.state,
     required this.isNow,
+    this.showTime = true,
   });
+
+  /// 低于这个宽度时，一格放不下「节次号 + 时间段」两行可读的字。
+  static const double timeLabelMinWidth = 420;
 
   final int section;
   final ClassroomPeriodState state;
 
   /// 今天此刻正在上的那一节。
   final bool isNow;
+
+  /// 是否在格子里写下时间段（如 8:00~9:50）。
+  final bool showTime;
 
   @override
   Widget build(BuildContext context) {
@@ -565,15 +641,17 @@ class _PeriodCell extends StatelessWidget {
     final period = SchedulePeriods.bySection(section);
 
     return Container(
-      height: 44,
+      // 44 是下限不是定值：2 倍字号时两行字比 44 高，写死高度会直接把格子撑破。
+      constraints: const BoxConstraints(minHeight: AppTouch.minimum),
       margin: const EdgeInsets.only(right: AppSpacing.xs),
-      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: colors.background,
         borderRadius: AppRadius.sm,
         border: isNow ? Border.all(color: scheme.error, width: 2) : null,
       ),
       child: Column(
+        // 高度交给内容（外面只保底），所以主轴不能撑满。
+        mainAxisSize: MainAxisSize.min,
         // 拉伸：让下面那行时间拿到格子的实际宽度，窄屏靠 FittedBox 缩字号，
         // 而不是被裁掉半截。
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -581,27 +659,29 @@ class _PeriodCell extends StatelessWidget {
         children: [
           Text(
             '$section',
-            style: TextStyle(
-              fontSize: AppTypography.size(13),
-              height: 1.1,
-              fontWeight: FontWeight.w700,
-              color: colors.foreground,
-            ),
+            textAlign: TextAlign.center,
+            style:
+                (showTime
+                        ? Theme.of(context).textTheme.labelMedium
+                        : Theme.of(context).textTheme.labelLarge)
+                    ?.copyWith(
+                      height: 1.1,
+                      fontWeight: FontWeight.w700,
+                      color: colors.foreground,
+                    ),
           ),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              period == null || period.start.isEmpty
-                  ? ''
-                  : period.timeRangeShort,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: AppTypography.size(9),
-                height: 1.3,
-                color: colors.foreground,
+          if (showTime)
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                period == null || period.start.isEmpty
+                    ? ''
+                    : period.timeRangeShort,
+                maxLines: 1,
+                style: Theme.of(context).textTheme.labelSmall
+                    ?.copyWith(height: 1.3, color: colors.foreground),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -692,5 +772,224 @@ class EmptyClassroomView extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 空教室规划：选几节 + 最低容量，算一条楼层变动最小的自习路线。
+///
+/// 算法在 `classroom_planner.dart`（纯函数，有单元测试）。这里只做选择与呈现，
+/// 数据直接用当前这一周的课表，不另发请求。
+class _PlannerSheet extends StatefulWidget {
+  const _PlannerSheet({required this.rooms, required this.weekday});
+
+  final List<ClassroomStatus> rooms;
+
+  /// 1 = 周一。
+  final int weekday;
+
+  @override
+  State<_PlannerSheet> createState() => _PlannerSheetState();
+}
+
+class _PlannerSheetState extends State<_PlannerSheet> {
+  static const List<int> _capacityOptions = [0, 60, 90, 120];
+
+  final Set<int> _slots = {};
+  int _minCapacity = 0;
+  PlannerResult? _result;
+
+  void _plan() {
+    final slotsByRoom = <String, List<int>>{
+      for (final room in widget.rooms)
+        room.roomName: [
+          for (
+            var section = 1;
+            section <= ClassroomStatus.sectionCount;
+            section++
+          )
+            room.stateAt(widget.weekday, section).isFree ? 0 : 1,
+        ],
+    };
+    setState(() {
+      _result = ClassroomPlanner.plan(
+        rooms: [
+          for (final room in widget.rooms)
+            PlannerRoom(name: room.roomName, capacity: room.capacity),
+        ],
+        slotsByRoom: slotsByRoom,
+        slots: [for (final slot in _slots) slot - 1],
+        minCapacity: _minCapacity,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final result = _result;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('空教室规划', style: theme.textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                '选好要自习的节次，按楼层变动最小给出路线',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text('哪几节', style: theme.textTheme.labelLarge),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (
+                    var section = 1;
+                    section <= ClassroomStatus.sectionCount;
+                    section++
+                  )
+                    FilterChip(
+                      label: Text('$section'),
+                      selected: _slots.contains(section),
+                      onSelected: (selected) => setState(() {
+                        if (selected) {
+                          _slots.add(section);
+                        } else {
+                          _slots.remove(section);
+                        }
+                        _result = null;
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text('至少能坐', style: theme.textTheme.labelLarge),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final capacity in _capacityOptions)
+                    ChoiceChip(
+                      label: Text(capacity == 0 ? '不限' : '$capacity 人'),
+                      selected: _minCapacity == capacity,
+                      onSelected: (_) => setState(() {
+                        _minCapacity = capacity;
+                        _result = null;
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _slots.isEmpty ? null : _plan,
+                  icon: const Icon(Icons.alt_route),
+                  label: const Text('生成路线'),
+                ),
+              ),
+              if (result != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                _PlannerResultView(result: result),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlannerResultView extends StatelessWidget {
+  const _PlannerResultView({required this.result});
+
+  final PlannerResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    switch (result) {
+      case PlannerFailure(:final reason):
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, size: AppSpacing.lg, color: scheme.error),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                reason,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.error,
+                ),
+              ),
+            ),
+          ],
+        );
+      case PlannerSuccess(:final steps, :final floorChanges):
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              floorChanges == 0 ? '全程在同一层，不用上下楼' : '楼层变动 $floorChanges 层',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: scheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (final step in steps)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 64,
+                      child: Text(
+                        '第 ${step.slot + 1} 节',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.meeting_room_outlined,
+                      size: AppSpacing.lg,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      step.room,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      '${step.floor} 楼',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+    }
   }
 }

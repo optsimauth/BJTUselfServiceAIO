@@ -13,9 +13,6 @@ import '../models/homework/homework_model.dart';
 
 /// drift DAO 与 LocalEntityStore 之间的适配层。
 /// 模型 <-> 数据行的映射只在这里出现，别让 drift 的类型漏到上层。
-List<int> _ids<T>(List<T> items) =>
-    items.map((item) => (item as dynamic).id as int).toList();
-
 class CourseLocalStore implements LocalEntityStore<Course> {
   CourseLocalStore(this._dao);
 
@@ -34,7 +31,8 @@ class CourseLocalStore implements LocalEntityStore<Course> {
       _dao.upsertAll(items.map(_toCompanion).toList());
 
   @override
-  Future<void> remove(List<Course> items) => _dao.removeIds(_ids(items));
+  Future<void> remove(List<Course> items) =>
+      _dao.removeIds(items.map((item) => item.id).toList());
 
   @override
   Future<void> clear() => _dao.clear();
@@ -80,7 +78,8 @@ class GradeLocalStore implements LocalEntityStore<Grade> {
       _dao.upsertAll(items.map(_toCompanion).toList());
 
   @override
-  Future<void> remove(List<Grade> items) => _dao.removeIds(_ids(items));
+  Future<void> remove(List<Grade> items) =>
+      _dao.removeIds(items.map((item) => item.id).toList());
 
   @override
   Future<void> clear() => _dao.clear();
@@ -126,7 +125,8 @@ class ExamLocalStore implements LocalEntityStore<ExamSchedule> {
       _dao.upsertAll(items.map(_toCompanion).toList());
 
   @override
-  Future<void> remove(List<ExamSchedule> items) => _dao.removeIds(_ids(items));
+  Future<void> remove(List<ExamSchedule> items) =>
+      _dao.removeIds(items.map((item) => item.id).toList());
 
   @override
   Future<void> clear() => _dao.clear();
@@ -168,7 +168,8 @@ class HomeworkLocalStore implements LocalEntityStore<Homework> {
       _dao.upsertAll(items.map(_toCompanion).toList());
 
   @override
-  Future<void> remove(List<Homework> items) => _dao.removeIds(_ids(items));
+  Future<void> remove(List<Homework> items) =>
+      _dao.removeIds(items.map((item) => item.id).toList());
 
   @override
   Future<void> clear() => _dao.clear();

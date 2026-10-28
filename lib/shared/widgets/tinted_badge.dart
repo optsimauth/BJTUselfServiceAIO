@@ -33,14 +33,15 @@ class TintedBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AppColors.badge(Theme.of(context).colorScheme, accent);
     return Container(
-      padding: padding ??
+      padding:
+          padding ??
           const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
             vertical: AppSpacing.xs,
           ),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: borderRadius ?? AppRadius.sheet,
+        borderRadius: borderRadius ?? AppRadius.chip,
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -55,9 +56,7 @@ class TintedBadge extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
+              style: Theme.of(context).textTheme.labelSmall
                   ?.copyWith(color: colors.foreground),
             ),
           ),

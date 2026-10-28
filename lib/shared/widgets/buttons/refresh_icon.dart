@@ -5,11 +5,7 @@ import 'package:flutter/material.dart';
 /// 同步要好几秒，只有图标不动的这几秒用户会以为按钮坏了；
 /// 转起来就一眼知道「已经在跑了，别再点」。
 class RefreshIcon extends StatefulWidget {
-  const RefreshIcon({
-    super.key,
-    required this.isBusy,
-    required this.onPressed,
-  });
+  const RefreshIcon({super.key, required this.isBusy, required this.onPressed});
 
   final bool isBusy;
 

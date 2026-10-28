@@ -1,195 +1,211 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/service_locator.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/model/common_models.dart';
-import '../../shared/widgets/buttons/app_buttons.dart';
 import '../../shared/theme/spacing.dart';
+import '../../shared/widgets/buttons/app_buttons.dart';
 
-/// 登录页。只在**没有**本地凭据（第一次用）或自动登录失败时出现。
-///
-/// 不显示验证码：验证码在 AccountRepository 里自动识别后直接提交。
-/// 登录成功后不自己导航，路由守卫看到登录态变成 true 会把人送回主页。
-class LoginPage extends StatefulWidget {
+/// 入口装配依赖，表单独立渲染与测试。
+class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
-
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  Widget build(BuildContext context) {
+    final locator = ServiceScope.of(context);
+    return LoginView(
+      initialUsername: locator.secureStorage.cachedCredentials?.username ?? '',
+      onLogin: locator.accountRepository.login,
+    );
+  }
 }
 
-class _LoginPageState extends State<LoginPage> {
-  late final TextEditingController _usernameController;
-  late final TextEditingController _passwordController;
+class LoginView extends StatefulWidget {
+  const LoginView({
+    super.key,
+    this.initialUsername = '',
+    required this.onLogin,
+  });
+  final String initialUsername;
+  final Future<void> Function(Credentials) onLogin;
+  @override
+  State<LoginView> createState() => _LoginViewState();
+}
 
-  bool _obscurePassword = true;
+class _LoginViewState extends State<LoginView> {
+  late final _username = TextEditingController(text: widget.initialUsername);
+  final _password = TextEditingController();
+  bool _obscure = true;
   bool _busy = false;
-  Object? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    // 初值在 initState 里同步取好，之后**任何**代码都不再往这两个 controller 里写内容。
-    // 异步回填会在用户已经改过输入框之后才落笔，从而出现「旧密码粘回来」的现象。
-    final credentials = ServiceScope.of(context)
-        .secureStorage
-        .cachedCredentials;
-    _usernameController = TextEditingController(
-      text: credentials?.username ?? '',
-    );
-    _passwordController = TextEditingController(
-      text: credentials?.password ?? '',
-    );
-  }
-
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
+  String? _error;
 
   bool get _canSubmit =>
-      !_busy &&
-      _usernameController.text.trim().isNotEmpty &&
-      _passwordController.text.isNotEmpty;
+      !_busy && _username.text.trim().isNotEmpty && _password.text.isNotEmpty;
 
   Future<void> _submit() async {
-    if (!_canSubmit) {
-      return;
-    }
+    if (!_canSubmit) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await ServiceScope.of(context).accountRepository.login(
-        Credentials(
-          username: _usernameController.text.trim(),
-          password: _passwordController.text,
-        ),
+      await widget.onLogin(
+        Credentials(username: _username.text.trim(), password: _password.text),
       );
+      TextInput.finishAutofillContext();
     } catch (error) {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _error = error;
-        });
-      }
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('登录')),
-      body: SafeArea(
-        child: Center(
+  void dispose() {
+    _username.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.xl),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl, vertical: AppSpacing.xl),
-              child: AutofillGroup(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      AppConstants.appName,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineMedium,
+            constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
+            child: AutofillGroup(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _LoginHeading(),
+                  const SizedBox(height: AppSpacing.xxl),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.xl),
+                      child: _buildFields(context),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      AppConstants.appSlogan,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  Text(
+                    '使用学校统一身份认证账号\n密码仅保存在此设备的安全存储中',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(height: 32),
-                    if (_error != null) ...[
-                      _ErrorBanner(message: '$_error'),
-                      const SizedBox(height: 16),
-                    ],
-                    TextField(
-                      controller: _usernameController,
-                      enabled: !_busy,
-                      autofillHints: const [AutofillHints.username],
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: '学号',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                      // 输入变了才能重新判断登录按钮该不该亮。
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _passwordController,
-                      enabled: !_busy,
-                      autofillHints: const [AutofillHints.password],
-                      obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
-                        labelText: '密码',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                          ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                        ),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                      onSubmitted: (_) => _submit(),
-                    ),
-                    const SizedBox(height: 24),
-                    PrimaryButton(
-                      label: '登 录',
-                      icon: Icons.login,
-                      loading: _busy,
-                      onPressed: _canSubmit ? _submit : null,
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+
+  Widget _buildFields(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text('登录校园账号', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: AppSpacing.sm),
+      Text('课表、成绩与待办，从这里开始。', style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: AppSpacing.xl),
+      TextField(
+        controller: _username,
+        enabled: !_busy,
+        autofillHints: const [AutofillHints.username],
+        autocorrect: false,
+        textInputAction: TextInputAction.next,
+        decoration: const InputDecoration(
+          labelText: '学号 / 工号',
+          prefixIcon: Icon(Icons.person_outline),
+        ),
+        onChanged: (_) => setState(() => _error = null),
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      TextField(
+        controller: _password,
+        enabled: !_busy,
+        autofillHints: const [AutofillHints.password],
+        obscureText: _obscure,
+        autocorrect: false,
+        enableSuggestions: false,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: '统一认证密码',
+          prefixIcon: const Icon(Icons.lock_outline),
+          suffixIcon: IconButton(
+            tooltip: _obscure ? '显示密码' : '隐藏密码',
+            onPressed: _busy
+                ? null
+                : () => setState(() => _obscure = !_obscure),
+            icon: Icon(
+              _obscure
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+            ),
+          ),
+        ),
+        onChanged: (_) => setState(() => _error = null),
+        onSubmitted: (_) => _submit(),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: AppSpacing.lg),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            _error!,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
+      ],
+      const SizedBox(height: AppSpacing.xl),
+      PrimaryButton(
+        label: '登录',
+        icon: Icons.arrow_forward,
+        loading: _busy,
+        onPressed: _canSubmit ? _submit : null,
+      ),
+    ],
+  );
 }
 
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
-
-  final String message;
-
+class _LoginHeading extends StatelessWidget {
+  const _LoginHeading();
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: AppRadius.md,
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, color: scheme.error, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(message, style: TextStyle(color: scheme.error)),
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary,
+            borderRadius: AppRadius.sheet,
           ),
-        ],
-      ),
+          child: Icon(
+            Icons.train_outlined,
+            size: 32,
+            color: theme.colorScheme.onPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Text(
+          '交大自由行',
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          '让校园生活，从容一点。',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

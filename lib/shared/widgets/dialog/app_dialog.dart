@@ -26,6 +26,7 @@ abstract final class AppDialog {
             style: destructive
                 ? FilledButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
                   )
                 : null,
             onPressed: () => Navigator.of(context).pop(true),

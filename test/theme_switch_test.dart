@@ -30,7 +30,7 @@ double _luminance(Color c) => c.computeLuminance();
 
 double _contrast(Color a, Color b) {
   final la = _luminance(a), lb = _luminance(b);
-  return (la > lb ? la / lb : lb / la);
+  return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
 }
 
 void main() {

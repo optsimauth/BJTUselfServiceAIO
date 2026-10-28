@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/model/async_state.dart';
 import '../../core/state/sync_result.dart';
 import '../../data/models/account/account_model.dart';
+import '../../data/models/account/account_status.dart';
 import '../../data/models/calendar/calendar_week.dart';
 import '../../data/models/course/course_model.dart';
 import '../../data/models/exam/exam_model.dart';
@@ -13,6 +14,7 @@ import '../../data/repositories/account_repository.dart';
 import '../../data/repositories/course_repository.dart';
 import '../../data/repositories/exam_repository.dart';
 import '../../data/repositories/homework_repository.dart';
+import '../../data/repositories/status_repository.dart';
 import '../../data/repositories/sync_coordinator.dart';
 
 /// 首页要展示的一屏数据。
@@ -20,6 +22,7 @@ class HomeSummary {
   const HomeSummary({
     this.profile = StudentProfile.empty,
     this.currentWeek = 0,
+    this.status,
     this.calendar,
     this.todayCourses = const [],
     this.pendingHomework = const [],
@@ -31,6 +34,9 @@ class HomeSummary {
 
   final StudentProfile profile;
   final int currentWeek;
+
+  /// 余额与未读邮件。拿不到就是 null，界面写「未知」，不影响其余内容。
+  final AccountStatus? status;
 
   /// 校历时间轴。null = 没拿到校历（退回 7 天除法，假期期间周次会偏）。
   final TeachingCalendar? calendar;
@@ -49,11 +55,13 @@ class HomeController extends ChangeNotifier {
     required CourseRepository courseRepository,
     required HomeworkRepository homeworkRepository,
     required ExamRepository examRepository,
+    required StatusRepository statusRepository,
     required SyncCoordinator syncCoordinator,
   }) : _accountRepository = accountRepository,
        _courseRepository = courseRepository,
        _homeworkRepository = homeworkRepository,
        _examRepository = examRepository,
+       _statusRepository = statusRepository,
        _syncCoordinator = syncCoordinator {
     _bind();
   }
@@ -62,7 +70,11 @@ class HomeController extends ChangeNotifier {
   final CourseRepository _courseRepository;
   final HomeworkRepository _homeworkRepository;
   final ExamRepository _examRepository;
+  final StatusRepository _statusRepository;
   final SyncCoordinator _syncCoordinator;
+
+  /// 最近一次拿到的账户状态（余额 / 未读）。刷新失败时沿用旧值。
+  AccountStatus? _status;
 
   final List<StreamSubscription<Object?>> _subscriptions = [];
 
@@ -79,10 +91,20 @@ class HomeController extends ChangeNotifier {
       _setState(AsyncState<HomeSummary>.loading());
     }
     try {
+      await _refreshStatus();
       final summary = await _loadSummary();
       _setState(AsyncState<HomeSummary>.data(summary));
     } catch (error) {
       _setState(AsyncState<HomeSummary>.error(error));
+    }
+  }
+
+  /// 余额/未读是附加信息：失败不抛给页面，沿用上一次成功值。
+  Future<void> _refreshStatus() async {
+    try {
+      _status = await _statusRepository.fetch();
+    } catch (_) {
+      _status = _statusRepository.cached;
     }
   }
 
@@ -124,6 +146,7 @@ class HomeController extends ChangeNotifier {
     return HomeSummary(
       profile: await _tryProfile(),
       currentWeek: calendar?.weekOf(DateTime.now()) ?? await _currentWeek(),
+      status: _status,
       calendar: calendar,
       todayCourses: todayCourses(courses, DateTime.now()),
       pendingHomework: homework

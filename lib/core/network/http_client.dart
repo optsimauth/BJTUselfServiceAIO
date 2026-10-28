@@ -8,8 +8,7 @@ import 'cookie_manager.dart';
 import 'redirect_follower.dart';
 
 /// 统一的 Dio 工厂。
-/// 学校旧站点证书链经常不完整（旧版 OkHttp 也是直接信任全部证书），
-/// 所以这里显式放开证书校验，并统一 UA / 超时 / cookie。
+/// 统一 UA / 超时 / Cookie，使用系统证书校验保护登录凭据。
 abstract final class HttpClientFactory {
   static const String userAgent =
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
@@ -37,8 +36,6 @@ abstract final class HttpClientFactory {
     dio.httpClientAdapter = IOHttpClientAdapter(
       createHttpClient: () {
         final client = HttpClient();
-        // 学校旧站点证书链不完整：直接信任，和旧版 OkHttp 的行为保持一致。
-        client.badCertificateCallback = (_, _, _) => true;
         client.connectionTimeout = timeout;
         return client;
       },

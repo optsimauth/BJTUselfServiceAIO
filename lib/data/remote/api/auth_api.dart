@@ -1,8 +1,11 @@
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/request_manager.dart';
+import '../../../core/model/common_models.dart';
+import '../../../services/auth/sso_password_cipher.dart';
 import '../parsers/auth_parser.dart';
+import '../parsers/sso_parser.dart';
 
-/// MIS + CAS 的原始请求。只负责拿到 HTML/字节，解析在 AuthParser 里。
+/// 新版 SSO 握手与 MIS 子系统入口，页面解析和密码加密分别交给专职模块。
 ///
 /// 这里的每个请求都 `requireLogin: false`：它们是登录流程本身，
 /// 要是还等"已登录"就死锁了（登录等请求、请求等登录）。
@@ -11,36 +14,48 @@ class AuthApi {
 
   final RequestManager _request;
 
-  /// 走 SSO 入口：已登录会直接落到 MIS 首页，未登录会 302 到 CAS 登录页。
+  /// 走 SSO 入口：已登录落到 MIS 首页，未登录跳到新版统一认证。
   /// cookie 由 RequestManager 的 CookieJar 自动带上，不用手工拼 Cookie 头。
   Future<String> fetchSsoPage() =>
       _request.getText(ApiConstants.ssoUrl, requireLogin: false);
 
-  /// 验证码图片。必须带 Referer，否则 CAS 会返回空图。
-  Future<List<int>> fetchCaptchaImage({
-    required String captchaKey,
-    String? referer,
-  }) => _request.downloadBytes(
-    ApiConstants.captchaImageUrl(captchaKey),
-    headers: {'Referer': referer ?? ApiConstants.casLoginPath},
+  Future<FetchedText> openSsoLogin() =>
+      _request.getTextWithFinalUri(ApiConstants.ssoUrl, requireLogin: false);
+
+  Future<void> login(Credentials credentials) async {
+    final page = await openSsoLogin();
+    if (SsoParser.isMisHome(page.finalUri) &&
+        AuthParser.isAuthenticated(page.body)) {
+      return;
+    }
+    final form = SsoParser.parseLoginForm(page.body, page.finalUri);
+    final response = await submitSsoLogin(form, page.finalUri, credentials);
+    if (!SsoParser.isMisHome(response.finalUri) ||
+        !AuthParser.isAuthenticated(response.body)) {
+      SsoParser.rejectLogin(response.body);
+    }
+  }
+
+  Future<FetchedText> submitSsoLogin(
+    SsoLoginForm form,
+    Uri referer,
+    Credentials credentials,
+  ) => _request.postFormWithFinalUri(
+    form.action.toString(),
+    {
+      ...form.fields,
+      'username': credentials.username,
+      'password': form.publicKey == null
+          ? credentials.password
+          : SsoPasswordCipher.encrypt(credentials.password, form.publicKey!),
+      'loginType': 'username_password',
+    },
+    headers: {
+      'Referer': referer.toString(),
+      'Origin': 'https://sso.bjtu.edu.cn',
+    },
     requireLogin: false,
   );
-
-  /// 提交 CAS 登录表单。登录名/密码/验证码一次提交，不需要人工确认。
-  Future<String> submitCasLogin(Map<String, String> form, {String? referer}) =>
-      _request.postForm(
-        ApiConstants.casLoginPath,
-        form,
-        requireLogin: false,
-        headers: {
-          'Referer': referer ?? ApiConstants.casLoginPath,
-          'Origin': ApiConstants.casHost,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      );
-
-  Future<String> checkMisCookie() =>
-      _request.getText(ApiConstants.misModuleUrl, requireLogin: false);
 
   /// 课程平台入口。旧版先访问 module/28 建立跨站会话。
   Future<String> initializeCoursePlatform() =>

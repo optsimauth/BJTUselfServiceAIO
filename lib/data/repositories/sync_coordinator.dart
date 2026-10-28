@@ -184,8 +184,6 @@ class SyncCoordinator {
     pendingChanges.value = next;
   }
 
-  // ponytail: 没有做 in-flight 去重，同一模块并发调用会重复打接口；
-  // 真出现重复请求再按 SyncModule 加一张 in-flight 表。
   void _begin() {
     _running++;
     isSyncing.value = true;

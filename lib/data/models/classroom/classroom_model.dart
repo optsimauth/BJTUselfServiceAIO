@@ -278,6 +278,26 @@ class ClassroomBuilding {
   final String id;
   final String name;
 
+  /// 列表徽章上的缩写。**只用于显示**：请求和路由仍然用 [name]。
+  ///
+  /// 映射抄旧项目 `DetectionScreen.buildingAbbreviation`（v1.8.1，commit 13efd16）：
+  /// 常用 11 栋给固定缩写，其余取前两个字。名字长短不一，全名直接塞进列表
+  /// 会把副标题挤掉，所以用缩写做识别位。
+  String get abbreviation => switch (name) {
+    '第十七号教学楼' => '17',
+    '第九教学楼' => '九',
+    '第八教学楼' => '八',
+    '第五教学楼' => '五',
+    '思源楼' => 'SY',
+    '思源西楼' => 'SX',
+    '思源东楼' => 'SD',
+    '逸夫教学楼' => 'YF',
+    '机械楼' => 'JX',
+    '东区一教' => 'D1',
+    '东区二教' => 'D2',
+    _ => name.length <= 2 ? name : name.substring(0, 2),
+  };
+
   @override
   bool operator ==(Object other) =>
       other is ClassroomBuilding && other.id == id;

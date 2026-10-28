@@ -28,7 +28,7 @@ class GradeController extends ChangeNotifier {
   }
 
   final GradeRepository _repository;
-  final String _studentId;
+  String _studentId;
   StreamSubscription<List<Grade>>? _subscription;
   bool _disposed = false;
 
@@ -63,6 +63,15 @@ class GradeController extends ChangeNotifier {
   bool get isSaving => _saving;
 
   bool get hasStudent => _studentId.isNotEmpty;
+
+  /// Controller 比登录活得更久，不能把启动时的学号固定到整个进程。
+  void updateStudentId(String studentId) {
+    if (_studentId == studentId.trim()) return;
+    _studentId = studentId.trim();
+    _selectedKeys = <String>{};
+    _reloadSelections();
+    notifyListeners();
+  }
 
   /// 界面上出现过的学期，展示顺序 = 成绩顺序（第一个出现的在前）。
   List<String> get semesterOptions {

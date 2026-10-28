@@ -9,6 +9,10 @@ import '../../app/app_router.dart';
 import '../../core/utils/log_recorder.dart';
 import '../../shared/theme/spacing.dart';
 import '../../shared/widgets/dialog/app_dialog.dart';
+import '../../shared/widgets/buttons/app_buttons.dart';
+import '../../shared/widgets/cards/app_card.dart';
+import '../../shared/widgets/page_width.dart';
+import '../../shared/widgets/app_status_view.dart';
 
 /// 日志页（隐藏入口：/logs）。
 ///
@@ -23,8 +27,6 @@ class LogsPage extends StatefulWidget {
 }
 
 class _LogsPageState extends State<LogsPage> {
-
-
   List<File> _files = const [];
   bool _loading = true;
 
@@ -56,7 +58,6 @@ class _LogsPageState extends State<LogsPage> {
     );
   }
 
-
   Future<void> _clear() async {
     final confirmed = await AppDialog.confirm(
       context,
@@ -73,46 +74,54 @@ class _LogsPageState extends State<LogsPage> {
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     final directory = LogRecorder.instance.directory;
     return Scaffold(
-      appBar: AppBar(title: const Text('日志')),
-      body: ListView(
-        children: [
-          ListTile(
-            title: const Text('保存位置'),
-            subtitle: Text(directory?.path ?? '不可用', maxLines: 2),
-            trailing: const Icon(Icons.folder_open, size: 20),
-            onTap: () => context.push(AppRoutes.settings),
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: const Text('清空日志'),
-            enabled: _files.isNotEmpty,
-            onTap: _clear,
-          ),
-          const Divider(),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.all(AppSpacing.xl),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_files.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(AppSpacing.xl),
-              child: Text(
-                '还没有日志。App 出错时会自动记到这里，一般不用管它。',
-                textAlign: TextAlign.center,
-              ),
-            )
-          else
-            for (final file in _files)
-              _FileTile(file: file, onTap: () => _openLog(file)),
-        ],
+      appBar: AppBar(leading: const PageBackButton(), title: const Text('日志')),
+      body: PageWidth(
+        maxWidth: AppLayout.contentMaxWidth,
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            AppSection(
+              title: '日志管理',
+              children: [
+                ListTile(
+                  title: const Text('保存位置'),
+                  subtitle: Text(directory?.path ?? '不可用', maxLines: 2),
+                  trailing: const Icon(Icons.folder_open, size: 20),
+                  onTap: () => context.push(AppRoutes.settings),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_outline),
+                  title: const Text('清空日志'),
+                  enabled: _files.isNotEmpty,
+                  onTap: _clear,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(AppSpacing.xl),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_files.isEmpty)
+              const AppStatusView(
+                icon: Icons.article_outlined,
+                title: '还没有日志',
+                message: '应用出错时会自动记录到这里。',
+              )
+            else
+              for (final file in _files)
+                _FileTile(file: file, onTap: () => _openLog(file)),
+          ],
+        ),
       ),
     );
   }
@@ -127,12 +136,16 @@ class _FileTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      title: Text(p.basename(file.path)),
-      subtitle: Text('${_size(file)} · ${_modified(file)} · 点开看内容'),
-      trailing: const Icon(Icons.chevron_right, size: 20),
-      onTap: onTap,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Card(
+        child: ListTile(
+          title: Text(p.basename(file.path)),
+          subtitle: Text('${_size(file)} · ${_modified(file)} · 点开看内容'),
+          trailing: const Icon(Icons.chevron_right, size: 20),
+          onTap: onTap,
+        ),
+      ),
     );
   }
 
@@ -176,9 +189,7 @@ class _LogViewerState extends State<_LogViewer> {
           ? bytes.sublist(bytes.length - _previewBytes)
           : bytes;
       final text = const Utf8Decoder(allowMalformed: true).convert(body);
-      return truncated
-          ? '（仅显示最后 ${body.length ~/ 1024} KB）\n\n$text'
-          : text;
+      return truncated ? '（仅显示最后 ${body.length ~/ 1024} KB）\n\n$text' : text;
     } catch (error) {
       return '读不出来：$error';
     }
@@ -210,7 +221,6 @@ class _LogViewerState extends State<_LogViewer> {
                       style: theme.textTheme.titleMedium,
                     ),
                   ),
-
                 ],
               ),
             ),
@@ -240,5 +250,4 @@ class _LogViewerState extends State<_LogViewer> {
       ),
     );
   }
-
 }

@@ -48,6 +48,7 @@ class _BjtuSelfServiceAppState extends State<BjtuSelfServiceApp> {
   @override
   void dispose() {
     _preferencesSubscription?.cancel();
+    _router.dispose();
     super.dispose();
   }
 
@@ -66,26 +67,20 @@ class _BjtuSelfServiceAppState extends State<BjtuSelfServiceApp> {
         // builder 包住整个 Navigator，所以三个 tab 页、push 出来的子页、
         // 弹层全部一次套上，不用挨个页面去改。手机上不生效。
         builder: (context, child) => PageWidth(
-          // 系统字号放大到 2x 时，日历格、成绩表头、筛选 chip 会直接溢出。
-          // 保留 1.3x：大字体用户看得见，只是放不下密集表格。
-          child: MediaQuery.withClampedTextScaling(
-            minScaleFactor: 1,
-            maxScaleFactor: 1.3,
-            // 下载进度浮在最底下。放在 builder 里 = 整个 Navigator 都被包住，
-            // 课件、成绩单、教学日历、导出的 .ics，谁在下载都从这里冒出来。
-            child: Stack(
-              children: [
-                child ?? const SizedBox.shrink(),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: DownloadProgressBar(
-                    tasks: widget.locator.downloadService.tasks,
-                  ),
+          // 下载进度浮在最底下。放在 builder 里 = 整个 Navigator 都被包住，
+          // 课件、成绩单、教学日历、导出的 .ics，谁在下载都从这里冒出来。
+          child: Stack(
+            children: [
+              child ?? const SizedBox.shrink(),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: DownloadProgressBar(
+                  tasks: widget.locator.downloadService.tasks,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -445,6 +445,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.2.0"
+  gm_crypto:
+    dependency: "direct main"
+    description:
+      name: gm_crypto
+      sha256: "7e102b0f9d36011fba05e8364d3d133561fb0e0035e2cc6be1e0280824781cc9"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.0.0"
   go_router:
     dependency: "direct main"
     description:

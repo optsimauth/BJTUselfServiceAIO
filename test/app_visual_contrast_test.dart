@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,25 +5,46 @@ import 'package:bjtuselfserviceaio/features/space/space_page.dart';
 import 'package:bjtuselfserviceaio/shared/theme/app_theme.dart';
 import 'package:bjtuselfserviceaio/shared/theme/colors.dart';
 
-/// WCAG 相对亮度。阈值 1.5 不是无障碍标准（那是 4.5），
-/// 是「这两块颜色用户能不能一眼分开」的现场底线。
-double _luminance(Color c) {
-  double channel(double v) =>
-      v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4) as double;
-  return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
-}
-
+/// WCAG 对比度必须包含相对亮度的 0.05 偏移，不能直接相除。
 double _contrast(Color a, Color b) {
-  final la = _luminance(a), lb = _luminance(b);
-  return (la > lb ? la / lb : lb / la);
+  final la = a.computeLuminance(), lb = b.computeLuminance();
+  return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
 }
 
 void main() {
+  test('WCAG 黑白为 21:1，相同颜色为 1:1', () {
+    expect(_contrast(Colors.black, Colors.white), 21);
+    expect(_contrast(Colors.grey, Colors.grey), 1);
+  });
   for (final (label, theme) in [
     ('light', AppTheme.light()),
     ('dark', AppTheme.dark()),
   ]) {
     final scheme = theme.colorScheme;
+
+    test('$label：主题文字配色至少 4.5:1，输入框和焦点边框至少 3:1', () {
+      for (final (foreground, background) in [
+        (scheme.onSurface, scheme.surface),
+        (scheme.onSurfaceVariant, scheme.surfaceContainerLow),
+        (scheme.onPrimary, scheme.primary),
+        (scheme.onPrimaryContainer, scheme.primaryContainer),
+        (scheme.onSecondaryContainer, scheme.secondaryContainer),
+        (scheme.onErrorContainer, scheme.errorContainer),
+      ]) {
+        expect(_contrast(foreground, background), greaterThanOrEqualTo(4.5));
+      }
+      final input = theme.inputDecorationTheme;
+      final enabled = input.enabledBorder! as OutlineInputBorder;
+      final focused = input.focusedBorder! as OutlineInputBorder;
+      expect(
+        _contrast(enabled.borderSide.color, input.fillColor!),
+        greaterThanOrEqualTo(3),
+      );
+      expect(
+        _contrast(focused.borderSide.color, input.fillColor!),
+        greaterThanOrEqualTo(3),
+      );
+    });
 
     test('$label：卡片有 1px 描边，不再是一块看不出边界的底色', () {
       final shape = theme.cardTheme.shape! as RoundedRectangleBorder;
@@ -103,7 +122,10 @@ void main() {
   }
 
   test('readableOn 推到底也能保证对比度（输入极差颜色）', () {
-    for (final scheme in [const ColorScheme.light(), const ColorScheme.dark()]) {
+    for (final scheme in [
+      const ColorScheme.light(),
+      const ColorScheme.dark(),
+    ]) {
       for (final accent in [
         const Color(0xFF808080),
         const Color(0xFF00FF00),
@@ -111,8 +133,11 @@ void main() {
         const Color(0xFFFFF200),
       ]) {
         final badge = AppColors.badge(scheme, accent);
-        expect(AppColors.contrast(badge.foreground, badge.background),
-            greaterThanOrEqualTo(4.5), reason: '$accent 的徽章字看不清');
+        expect(
+          AppColors.contrast(badge.foreground, badge.background),
+          greaterThanOrEqualTo(4.5),
+          reason: '$accent 的徽章字看不清',
+        );
       }
     }
   });
@@ -141,12 +166,10 @@ void main() {
       final text = tester.widget<Text>(find.text('课程表'));
       final background = card.color ?? theme.cardTheme.color!;
       expect(
-        _contrast(
-          text.style?.color ?? theme.colorScheme.onSurface,
-          background,
-        ),
+        _contrast(text.style?.color ?? theme.colorScheme.onSurface, background),
         greaterThanOrEqualTo(4.5),
         reason: '宫格标签和卡片底色分不开',
       );
     });
-  }}
+  }
+}

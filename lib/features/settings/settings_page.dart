@@ -12,7 +12,9 @@ import '../../core/utils/log_recorder.dart';
 import '../../data/repositories/sync_coordinator.dart';
 import '../../services/update/update_service.dart';
 import '../../shared/theme/spacing.dart';
+import '../../shared/widgets/page_width.dart';
 import '../../shared/widgets/dialog/app_dialog.dart';
+import '../../shared/widgets/cards/app_card.dart';
 
 /// 设置页。旧项目 SettingScreen.kt（868 行）。
 class SettingsPage extends StatefulWidget {
@@ -68,6 +70,24 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// 选一张图当首页背景。取消 = 不改；只认图片，避免把任意文件塞进 Image.file。
+  Future<void> _chooseWallpaper() async {
+    try {
+      final files = await _filePicker.pickFiles(
+        allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      );
+      if (!mounted) return;
+      final picked = files.where((file) => file.hasPath).firstOrNull;
+      if (picked == null) return;
+      await _preferences.setBackgroundImageUri(picked.path);
+      if (!mounted) return;
+      _toast('背景图已更新');
+    } catch (error) {
+      if (!mounted) return;
+      await AppDialog.error(context, error);
+    }
   }
 
   /// 选一个新的下载根目录。取消了就不改设置。
@@ -185,90 +205,144 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
-      body: StreamBuilder<String>(
-        stream: _preferences.changes,
-        builder: (context, _) => ListView(
-          children: [
-            const _SectionHeader(title: '外观'),
-            _ThemeModeTile(preferences: _preferences),
-            const _SectionHeader(title: '下载'),
-            ListTile(
-              title: const Text('下载位置'),
-              subtitle: Text(
-                _downloadLocation,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+      body: PageWidth(
+        maxWidth: AppLayout.contentMaxWidth,
+        child: StreamBuilder<String>(
+          stream: _preferences.changes,
+          builder: (context, _) => ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
+              AppSection(
+                title: '外观',
+                children: [
+                  _ThemeModeTile(preferences: _preferences),
+                  ListTile(
+                    title: const Text('背景图'),
+                    subtitle: Text(
+                      _preferences.backgroundImageUri.isEmpty
+                          ? '未设置，用主题底色'
+                          : '已设置，首页顶部显示',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: _preferences.backgroundImageUri.isEmpty
+                        ? const Icon(Icons.image_outlined, size: 20)
+                        : IconButton(
+                            tooltip: '清除背景图',
+                            icon: const Icon(Icons.close),
+                            onPressed: () =>
+                                _preferences.setBackgroundImageUri(''),
+                          ),
+                    onTap: _chooseWallpaper,
+                  ),
+                ],
               ),
-              trailing: const Icon(Icons.folder_open, size: 20),
-              onTap: _chooseDownloadDirectory,
-            ),
-            ListTile(
-              title: const Text('恢复默认位置'),
-              enabled: _preferences.downloadDirectory.isNotEmpty,
-              onTap: () => _preferences.setDownloadDirectory(''),
-            ),
-            const _SectionHeader(title: '日志'),
-            ListTile(
-              title: const Text('日志保存位置'),
-              subtitle: Text(
-                _preferences.logDirectory.isEmpty
-                    ? '应用默认目录'
-                    : _preferences.logDirectory,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              const SizedBox(height: AppSpacing.xl),
+              AppSection(
+                title: '下载',
+                children: [
+                  ListTile(
+                    title: const Text('下载位置'),
+                    subtitle: Text(
+                      _downloadLocation,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.folder_open, size: 20),
+                    onTap: _chooseDownloadDirectory,
+                  ),
+                  ListTile(
+                    title: const Text('恢复默认位置'),
+                    enabled: _preferences.downloadDirectory.isNotEmpty,
+                    onTap: () => _preferences.setDownloadDirectory(''),
+                  ),
+                ],
               ),
-              trailing: const Icon(Icons.folder_open, size: 20),
-              onTap: _chooseLogDirectory,
-            ),
-            ListTile(
-              title: const Text('恢复默认位置'),
-              enabled: _preferences.logDirectory.isNotEmpty,
-              onTap: () => _setLogDirectory(''),
-            ),
-            ListTile(
-              title: const Text('查看日志'),
-              onTap: () => context.push(AppRoutes.logs),
-            ),
-            const _SectionHeader(title: '自动同步'),
-            for (final target in AutoSyncTarget.values)
-              SwitchListTile(
-                title: Text(_label(target)),
-                value: _preferences.autoSyncEnabled(target),
-                onChanged: (value) => _setAutoSync(target, value),
+              const SizedBox(height: AppSpacing.xl),
+              AppSection(
+                title: '日志',
+                children: [
+                  ListTile(
+                    title: const Text('日志保存位置'),
+                    subtitle: Text(
+                      _preferences.logDirectory.isEmpty
+                          ? '应用默认目录'
+                          : _preferences.logDirectory,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.folder_open, size: 20),
+                    onTap: _chooseLogDirectory,
+                  ),
+                  ListTile(
+                    title: const Text('恢复默认位置'),
+                    enabled: _preferences.logDirectory.isNotEmpty,
+                    onTap: () => _setLogDirectory(''),
+                  ),
+                  ListTile(
+                    title: const Text('查看日志'),
+                    onTap: () => context.push(AppRoutes.logs),
+                  ),
+                ],
               ),
-            const _SectionHeader(title: '其他'),
-            SwitchListTile(
-              title: const Text('启动时检查更新'),
-              value: _preferences.checkUpdateEnabled,
-              onChanged: _preferences.setCheckUpdateEnabled,
-            ),
-            ListTile(
-              title: const Text('检查更新'),
-              subtitle: _latestRelease == null
-                  ? null
-                  : Text('最新版本 ${_latestRelease!.version}'),
-              trailing: _checkingUpdate
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : null,
-              onTap: _checkingUpdate ? null : _checkForUpdate,
-            ),
-            ListTile(
-              leading: const Icon(Icons.star_outline, size: 22),
-              title: const Text('项目 Star'),
-              subtitle: const Text('看看仓库最近涨了多少'),
-              onTap: () => context.push(AppRoutes.stars),
-            ),
-            ListTile(title: const Text('关于'), onTap: _showAbout),
-            ListTile(
-              title: const Text('退出登录'),
-              textColor: Theme.of(context).colorScheme.error,
-              onTap: _confirmLogout,
-            ),
-          ],
+              const SizedBox(height: AppSpacing.xl),
+              AppSection(
+                title: '自动同步',
+                children: [
+                  for (final target in AutoSyncTarget.values)
+                    SwitchListTile(
+                      title: Text(_label(target)),
+                      value: _preferences.autoSyncEnabled(target),
+                      onChanged: (value) => _setAutoSync(target, value),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              AppSection(
+                title: '应用',
+                children: [
+                  SwitchListTile(
+                    title: const Text('启动时检查更新'),
+                    value: _preferences.checkUpdateEnabled,
+                    onChanged: _preferences.setCheckUpdateEnabled,
+                  ),
+                  ListTile(
+                    title: const Text('检查更新'),
+                    subtitle: _latestRelease == null
+                        ? null
+                        : Text('最新版本 ${_latestRelease!.version}'),
+                    trailing: _checkingUpdate
+                        ? const SizedBox(
+                            width: AppSpacing.xl,
+                            height: AppSpacing.xl,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                    onTap: _checkingUpdate ? null : _checkForUpdate,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.star_outline, size: 22),
+                    title: const Text('项目 Star'),
+                    subtitle: const Text('看看仓库最近涨了多少'),
+                    onTap: () => context.push(AppRoutes.stars),
+                  ),
+                  ListTile(title: const Text('关于'), onTap: _showAbout),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              AppSection(
+                title: '账号',
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.logout),
+                    title: const Text('退出登录'),
+                    textColor: Theme.of(context).colorScheme.error,
+                    onTap: _confirmLogout,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -282,14 +356,11 @@ class _SettingsPageState extends State<SettingsPage> {
     final module = SyncCoordinator.moduleOf(target);
     if (module == null || !mounted) return;
     _toast('正在同步${_label(target)}…');
-    final result = await ServiceScope.of(
-      context,
-    ).syncCoordinator.syncModule(module);
+    final result = await ServiceScope.of(context).syncCoordinator
+        .syncModule(module);
     if (!mounted) return;
     _toast(
-      result.hasChanges
-          ? '${_label(target)}有新变化'
-          : '${_label(target)}已是最新',
+      result.hasChanges ? '${_label(target)}有新变化' : '${_label(target)}已是最新',
     );
   }
 
@@ -312,7 +383,11 @@ class _ThemeModeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       title: const Text('主题'),
-      trailing: DropdownButton<String>(
+      subtitle: DropdownButton<String>(
+        isExpanded: true,
+        dropdownColor: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: AppRadius.control,
+        underline: const SizedBox.shrink(),
         value: preferences.themeMode,
         onChanged: (value) {
           if (value != null) preferences.setThemeMode(value);
@@ -325,27 +400,6 @@ class _ThemeModeTile extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppSpacing.lg,
-      AppSpacing.xl,
-      AppSpacing.lg,
-      AppSpacing.sm,
-    ),
-    child: Text(
-      title,
-      style: Theme.of(context).textTheme.labelLarge
-          ?.copyWith(color: Theme.of(context).colorScheme.primary),
-    ),
-  );
 }
 
 /// 关于弹窗里的一组小标题 + 若干行说明。

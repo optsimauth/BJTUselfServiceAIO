@@ -6,12 +6,13 @@ import '../../data/models/courseware/courseware_model.dart';
 import '../../data/repositories/courseware_repository.dart';
 import '../../shared/theme/colors.dart';
 import '../../shared/theme/spacing.dart';
+import '../../shared/widgets/page_width.dart';
 import '../../shared/theme/typography.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
 import '../../shared/widgets/dialog/app_dialog.dart';
 import 'courseware_controller.dart';
-import 'courseware_tree.dart';
+import '../../data/models/courseware/courseware_tree.dart';
 
 /// 课件页。旧项目 CoursewareScreen.kt（866 行）。
 ///
@@ -51,13 +52,12 @@ class _CoursewarePageState extends State<CoursewarePage> {
   @override
   void initState() {
     super.initState();
-    final locator = ServiceScope.of(context);
     // 默认用 ServiceLocator 里那个常驻 controller：树已经在内存里，进页面直接显示。
     // 传了 repository 的（测试）才自己建一个，并且由页面负责 dispose。
     _ownsController = widget.repository != null;
     _controller = _ownsController
         ? CoursewareController(repository: widget.repository!)
-        : locator.coursewareController;
+        : ServiceScope.of(context).coursewareController;
     // 后台悄悄换新：已经有内容就不再切成转圈（见 CoursewareController.refresh）。
     _controller.refresh();
   }
@@ -105,22 +105,25 @@ class _CoursewarePageState extends State<CoursewarePage> {
           ),
         ],
       ),
-      body: ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) => AsyncView<List<CoursewareNode>>(
-          state: _controller.state,
-          onRetry: _controller.refresh,
-          loadingMessage: '正在拉取课程资源…',
-          isEmpty: (_) => _controller.isEmpty,
-          emptyBuilder: (_) => const EmptyCoursewareView(),
-          builder: (context, _) => _CoursewareBody(
-            controller: _controller,
-            box: _searchBox,
-            anchorOf: anchorOf,
-            onDownloadFile: _downloadFile,
-            onDownloadAll: _downloadAll,
-            onDownloadCalendar: _downloadCalendar,
-            onRevealFile: _revealFile,
+      body: PageWidth(
+        maxWidth: AppLayout.contentMaxWidth,
+        child: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) => AsyncView<List<CoursewareNode>>(
+            state: _controller.state,
+            onRetry: _controller.refresh,
+            loadingMessage: '正在拉取课程资源…',
+            isEmpty: (_) => _controller.isEmpty,
+            emptyBuilder: (_) => const EmptyCoursewareView(),
+            builder: (context, _) => _CoursewareBody(
+              controller: _controller,
+              box: _searchBox,
+              anchorOf: anchorOf,
+              onDownloadFile: _downloadFile,
+              onDownloadAll: _downloadAll,
+              onDownloadCalendar: _downloadCalendar,
+              onRevealFile: _revealFile,
+            ),
           ),
         ),
       ),
@@ -140,7 +143,9 @@ class _CoursewarePageState extends State<CoursewarePage> {
     if (target == null || !target.mounted) return;
     await Scrollable.ensureVisible(
       target,
-      duration: _expandDuration,
+      duration: MediaQuery.disableAnimationsOf(target)
+          ? Duration.zero
+          : _expandDuration,
       curve: _expandCurve,
       alignment: 0.25,
     );
@@ -279,7 +284,8 @@ class _CoursewareHeader extends StatelessWidget {
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               isDense: true,
-              hintText: '搜课件名 / 课程名',
+              labelText: '搜索课件',
+              hintText: '课件名或课程名',
               prefixIcon: const Icon(Icons.search, size: 20),
               suffixIcon: controller.isSearching
                   ? IconButton(
@@ -401,7 +407,7 @@ class _CourseCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: AppSpacing.xs),
                         Text(
                           _subtitle(course.course?.teacherName ?? '', total),
                           maxLines: 1,
@@ -416,7 +422,9 @@ class _CourseCard extends StatelessWidget {
                   IconButton(
                     tooltip: '下载全部课件',
                     icon: const Icon(Icons.download_outlined),
-                    onPressed: pending == 0 ? null : () => onDownloadAll(course),
+                    onPressed: pending == 0
+                        ? null
+                        : () => onDownloadAll(course),
                   ),
                   IconButton(
                     tooltip: '下载教学日历',
@@ -484,7 +492,9 @@ class _Chevron extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedRotation(
     turns: expanded ? 0.5 : 0,
-    duration: _expandDuration,
+    duration: MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : _expandDuration,
     curve: _expandCurve,
     child: Icon(
       Icons.expand_more,
@@ -501,16 +511,19 @@ class _ExpandSection extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => AnimatedSize(
-    duration: _expandDuration,
-    curve: _expandCurve,
-    alignment: Alignment.topCenter,
-    child: expanded
+  Widget build(BuildContext context) {
+    final content = expanded
         ? child
-        : const SizedBox(width: double.infinity, height: 0),
-  );
+        : const SizedBox(width: double.infinity, height: 0);
+    if (MediaQuery.disableAnimationsOf(context)) return content;
+    return AnimatedSize(
+      duration: _expandDuration,
+      curve: _expandCurve,
+      alignment: Alignment.topCenter,
+      child: content,
+    );
+  }
 }
-
 
 /// 树里的一行。文件夹自己带「整包下载」，文件带「下载」。
 class _NodeRow extends StatelessWidget {
@@ -610,9 +623,9 @@ class _FolderBlock extends StatelessWidget {
           decoration: BoxDecoration(
             // 文件夹比文件重一档（底色 + 圆角 + 描边），文件行是裸的：层级一眼可分。
             color: expanded
-                ? scheme.surfaceContainerHigh
-                : scheme.surfaceContainerLowest,
-            borderRadius: AppRadius.md,
+                ? scheme.surfaceContainer
+                : scheme.surfaceContainerLow,
+            borderRadius: AppRadius.control,
             border: Border.all(color: scheme.outlineVariant),
           ),
           child: InkWell(
@@ -743,7 +756,7 @@ class _FileRow extends StatelessWidget {
                         ),
                       ),
                       if (location != null || meta.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: AppSpacing.xs),
                         Text(
                           location == null ? meta : '$location\n$meta',
                           maxLines: 2,

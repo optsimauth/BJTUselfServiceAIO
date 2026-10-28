@@ -11,7 +11,7 @@ import '../remote/api/courseware_api.dart';
 import '../remote/parsers/courseware_parser.dart';
 import '../remote/platform_session.dart';
 import 'platform_course_repository.dart';
-import '../../features/courseware/courseware_tree.dart';
+import '../models/courseware/courseware_tree.dart';
 
 /// 一次「下载全部」的结果。
 class CoursewareDownloadSummary {
@@ -77,16 +77,14 @@ class CoursewareRepository {
     }
   }
 
-  /// 逐门课递归拉资源树，覆盖缓存。任一门失败就跳过那一门。
+  /// 逐门课递归拉资源树，覆盖缓存。任一门课失败就跳过那一门。
+  ///
+  /// 课程清单拿不到时**不吞异常**：吞掉之后只剩一句「没拿到本学期课程」，
+  /// 用户以为是没选课，其实是会话或接口的问题。这里让真实原因上到界面。
   Future<List<CoursewareNode>> refreshTree() async {
-    List<PlatformCourse> courses;
-    try {
-      courses = await _courseRepository.currentCourses();
-    } catch (_) {
-      courses = const [];
-    }
+    final courses = await _courseRepository.currentCourses();
     if (courses.isEmpty) {
-      throw StateError('没拿到本学期课程');
+      throw StateError('课程清单是空的，课件无从查起');
     }
 
     final headers = await _session.headers();

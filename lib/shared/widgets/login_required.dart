@@ -5,6 +5,7 @@ import '../../app/app_router.dart';
 import '../../app/service_locator.dart';
 import '../../data/repositories/account_repository.dart';
 import '../widgets/buttons/app_buttons.dart';
+import 'app_status_view.dart';
 
 /// 数据页的外壳：登录态掉了就先给一个登录入口，别让请求打水漂。
 ///
@@ -33,20 +34,14 @@ class _LoginPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.lock_outline, size: 48),
-          const SizedBox(height: 12),
-          Text('登录后查看', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 20),
-          PrimaryButton(
-            label: '去登录',
-            icon: Icons.login,
-            onPressed: () => context.push(AppRoutes.login),
-          ),
-        ],
+    return AppStatusView(
+      icon: Icons.lock_outline,
+      title: '登录后查看',
+      message: '使用校园账号连接此项服务',
+      action: PrimaryButton(
+        label: '去登录',
+        icon: Icons.login,
+        onPressed: () => context.push(AppRoutes.login),
       ),
     );
   }

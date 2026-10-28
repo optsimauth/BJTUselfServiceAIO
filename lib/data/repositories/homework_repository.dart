@@ -224,14 +224,11 @@ class HomeworkRepository {
     return _downloadService.saveBytes(fileName: file.fileName, bytes: bytes);
   }
 
-  /// 当前学期的课程清单。平台挂了返回空列表，界面据此显示「拉不到课程」。
-  Future<List<PlatformCourse>> _courses() async {
-    try {
-      return await _courseRepository.currentCourses();
-    } catch (_) {
-      return const [];
-    }
-  }
+  /// 当前学期的课程清单。
+  ///
+  /// 拿不到就直接抛 —— 以前这里吞成空列表，界面只剩「作业刷新失败：没有课程」，
+  /// 掩盖了会话过期、平台入口打不开这类真实原因（`docs/FEATURE_PARITY.md` 复盘）。
+  Future<List<PlatformCourse>> _courses() => _courseRepository.currentCourses();
 
   /// 按平台主键找课（作业详情要教师工号，只有平台清单里才有）。
   Future<PlatformCourse?> _courseOf(Homework homework) async {

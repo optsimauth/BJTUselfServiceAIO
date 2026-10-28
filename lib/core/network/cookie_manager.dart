@@ -5,8 +5,7 @@ import 'cookie_interceptor.dart';
 
 /// 登录态 cookie 的唯一持有者（内存 CookieJar）。
 ///
-/// 冷启动不恢复 cookie：自动登录靠的是 SecureStorage 里的凭据重新走一遍 CAS。
-/// 落盘的 cookie 跨不了 CAS / MIS 两个域名，本来也省不掉这一步。
+/// 冷启动用安全存储里的凭据重新完成 SSO，不把短期认证票据落盘。
 class AppCookieManager {
   AppCookieManager({CookieJar? jar}) : _jar = jar ?? CookieJar();
 

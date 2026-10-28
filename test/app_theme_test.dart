@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bjtuselfserviceaio/shared/theme/app_theme.dart';
+import 'package:bjtuselfserviceaio/shared/theme/colors.dart';
+import 'package:bjtuselfserviceaio/shared/theme/spacing.dart';
 import 'package:bjtuselfserviceaio/shared/theme/typography.dart';
 
 /// 按固定顺序取出 textTheme 的 15 个槽位。
@@ -61,6 +63,65 @@ void main() {
       expect(_slotsOf(theme.textTheme).where((s) => s != null), isNotEmpty);
     }
   });
+
+  for (final brightness in Brightness.values) {
+    test('$brightness：换品牌种子只改变强调色，中性阅读区域保持一致', () {
+      final blue = brightness == Brightness.dark
+          ? AppTheme.dark()
+          : AppTheme.light();
+      final green = brightness == Brightness.dark
+          ? AppTheme.dark(dynamicSeed: Colors.green)
+          : AppTheme.light(dynamicSeed: Colors.green);
+      final a = blue.colorScheme;
+      final b = green.colorScheme;
+      expect(a.primary, isNot(b.primary));
+      expect(a.brightness, brightness);
+      expect(a.surface, b.surface);
+      expect(blue.cardTheme.color, green.cardTheme.color);
+      expect(a.onSurface, b.onSurface);
+      expect(a.outline, b.outline);
+      expect(a.outlineVariant, b.outlineVariant);
+      expect(blue.cardTheme.color, isNot(blue.scaffoldBackgroundColor));
+      expect(
+        AppColors.contrast(a.onSurfaceVariant, blue.cardTheme.color!),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
+
+    test('$brightness：按钮、输入与导航共用圆角，卡片和弹层按层级展开', () {
+      final theme = brightness == Brightness.dark
+          ? AppTheme.dark()
+          : AppTheme.light();
+      final button = theme.filledButtonTheme.style!;
+      expect(
+        (button.shape!.resolve({})! as RoundedRectangleBorder).borderRadius,
+        AppRadius.control,
+      );
+      expect(button.minimumSize!.resolve({})!.height, greaterThanOrEqualTo(48));
+      expect(
+        (theme.inputDecorationTheme.enabledBorder! as OutlineInputBorder)
+            .borderRadius,
+        AppRadius.control,
+      );
+      expect(
+        (theme.navigationRailTheme.indicatorShape! as RoundedRectangleBorder)
+            .borderRadius,
+        AppRadius.control,
+      );
+      expect(
+        theme.navigationRailTheme.indicatorColor,
+        theme.navigationBarTheme.indicatorColor,
+      );
+      expect(
+        (theme.cardTheme.shape! as RoundedRectangleBorder).borderRadius,
+        AppRadius.lg,
+      );
+      expect(
+        (theme.dialogTheme.shape! as RoundedRectangleBorder).borderRadius,
+        AppRadius.sheet,
+      );
+    });
+  }
 
   test('textTheme.apply 不再传 fontSizeFactor，空字号主题也能安全套用', () {
     // 回归锁点：只要重新传回 fontSizeFactor，空字号样式就会让 debug 崩掉。

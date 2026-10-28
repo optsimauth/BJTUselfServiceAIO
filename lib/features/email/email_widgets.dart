@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'email_controller.dart';
-import 'email_models.dart';
+import '../../data/models/email/email_models.dart';
 import '../../shared/theme/spacing.dart';
 
 /// 邮箱侧栏：写信 + 文件夹列表 + 搜索文件夹。
@@ -21,64 +21,76 @@ class MailFolderRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final folders = controller.visibleFolders;
-    return Container(
+    return SizedBox(
       width: 216,
-      color: scheme.surfaceContainerLow,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
-            child: FilledButton.tonalIcon(
-              onPressed: onCompose,
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('写信'),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
-            child: TextField(
-              style: Theme.of(context).textTheme.bodySmall,
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: '搜索文件夹',
-                prefixIcon: const Icon(Icons.search, size: 18),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.sm,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: AppRadius.sm,
-                ),
+      child: Material(
+        color: scheme.surfaceContainerLow,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.sm,
               ),
-              onChanged: controller.searchFolders,
+              child: FilledButton.tonalIcon(
+                onPressed: onCompose,
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('写信'),
+              ),
             ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-              children: [
-                for (final folder in folders)
-                  if (folder.isGroup)
-                    _FolderGroupTile(name: folder.name)
-                  else
-                    _FolderTile(
-                      folder: folder,
-                      selected: folder.id == controller.folderId,
-                      onTap: () => controller.selectFolder(folder.id),
-                    ),
-                if (folders.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                    child: Text(
-                      '没有匹配的文件夹',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.sm,
+              ),
+              child: TextField(
+                style: Theme.of(context).textTheme.bodySmall,
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: '搜索文件夹',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.sm,
                   ),
-              ],
+                  border: OutlineInputBorder(borderRadius: AppRadius.sm),
+                ),
+                onChanged: controller.searchFolders,
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                children: [
+                  for (final folder in folders)
+                    if (folder.isGroup)
+                      _FolderGroupTile(name: folder.name)
+                    else
+                      _FolderTile(
+                        folder: folder,
+                        selected: folder.id == controller.folderId,
+                        onTap: () => controller.selectFolder(folder.id),
+                      ),
+                  if (folders.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.md,
+                      ),
+                      child: Text(
+                        '没有匹配的文件夹',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -94,7 +106,12 @@ class _FolderGroupTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xs),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
       child: Text(
         name,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -125,20 +142,21 @@ class _FolderTile extends StatelessWidget {
       child: ListTile(
         dense: true,
         selected: selected,
-        selectedColor: scheme.secondaryContainer,
+        selectedColor: scheme.onPrimaryContainer,
+        selectedTileColor: scheme.primaryContainer,
         shape: RoundedRectangleBorder(borderRadius: AppRadius.sm),
         leading: Icon(
           mailFolderIcon(folder.icon),
           size: 18,
-          color: selected
-              ? scheme.onSecondaryContainer
-              : scheme.onSurfaceVariant,
+          color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
         ),
         title: Text(
           folder.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: selected ? scheme.onPrimaryContainer : scheme.onSurface,
+          ),
         ),
         onTap: onTap,
       ),
@@ -160,7 +178,12 @@ class MailListToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.xs),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.xs,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -429,7 +452,12 @@ class MailSelectionBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.sm,
+            AppSpacing.sm,
+          ),
           child: Row(
             children: [
               IconButton(
@@ -498,7 +526,7 @@ class _CheckLine extends StatelessWidget {
 PopupMenuEntry<Object> _filterHeader(BuildContext context, String title) =>
     PopupMenuItem<Object>(
       enabled: false,
-      height: 32,
+      // 不写死高度：2 倍字号下 32 会把标题裁掉，交给默认行高自己长。
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelMedium

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bjtuselfserviceaio/features/email/email_models.dart';
-import 'package:bjtuselfserviceaio/features/email/email_parser.dart';
+import 'package:bjtuselfserviceaio/data/models/email/email_models.dart';
+import 'package:bjtuselfserviceaio/data/remote/parsers/email_parser.dart';
 
 void main() {
   test('列表解析未读状态、附件标记和发件箱收件人兜底', () {

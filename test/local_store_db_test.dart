@@ -79,10 +79,21 @@ void main() {
       manager.detectChanges(remote: [_course('1')], local: const []),
     );
     await manager.apply(
-      manager.detectChanges(remote: const [], local: await store.getAll()),
+      manager.detectChanges(
+        remote: [_course('2')],
+        local: await store.getAll(),
+      ),
     );
 
-    expect(await store.getAll(), isEmpty);
+    expect((await store.getAll()).map((course) => course.courseId), ['2']);
+  });
+
+  test('空远端结果保留本地缓存，避免登录失效被误判为全量删除', () async {
+    await store.upsert([_course('1')]);
+    await manager.apply(
+      manager.detectChanges(remote: const [], local: await store.getAll()),
+    );
+    expect((await store.getAll()).map((course) => course.courseId), ['1']);
   });
 
   test('watchAll 把落库结果推给页面', () async {

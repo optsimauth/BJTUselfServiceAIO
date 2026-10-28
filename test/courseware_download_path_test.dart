@@ -1,5 +1,5 @@
 import 'package:bjtuselfserviceaio/data/models/courseware/courseware_model.dart';
-import 'package:bjtuselfserviceaio/features/courseware/courseware_tree.dart';
+import 'package:bjtuselfserviceaio/data/models/courseware/courseware_tree.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 CoursewareNode _file(String id, String name, {String? saved}) => CoursewareNode(

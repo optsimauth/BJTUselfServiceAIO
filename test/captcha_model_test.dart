@@ -13,12 +13,18 @@ Future<String> recognizeCaptcha(Uint8List image) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('识别项目根目录的 captcha.png', () async {
-    final image = await File('captcha.png').readAsBytes();
-    final result = await recognizeCaptcha(image);
+  test(
+    '识别项目根目录的 captcha.png',
+    () async {
+      final image = await File('captcha.png').readAsBytes();
+      final result = await recognizeCaptcha(image);
 
-    print('captcha.png 识别结果: $result');
-    expect(result, isNotEmpty);
-    expect(result, matches(RegExp(r'^[ 0-9+*=-]+$')));
-  }, timeout: const Timeout(Duration(minutes: 1)));
+      expect(result, isNotEmpty);
+      expect(result, matches(RegExp(r'^[ 0-9+*=-]+$')));
+    },
+    timeout: const Timeout(Duration(minutes: 1)),
+    skip: !File('captcha.png').existsSync()
+        ? '可选本地验证码图片 captcha.png 未提供；合成图片推理由 captcha_test 覆盖'
+        : false,
+  );
 }

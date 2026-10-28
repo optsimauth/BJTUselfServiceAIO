@@ -4,11 +4,7 @@ import 'package:flutter/material.dart';
 
 /// 品牌色 + 状态色。可动态取色的部分交给 Material 3 的 ColorScheme.fromSeed。
 /// 徽章 / 标签的一套配色：淡底 + 字 + 描边，三者由一个 accent 一次算出。
-typedef BadgeColors = ({
-  Color background,
-  Color foreground,
-  Color border,
-});
+typedef BadgeColors = ({Color background, Color foreground, Color border});
 
 abstract final class AppColors {
   static const Color brand = Color(0xFF1B5E9C);
@@ -71,12 +67,14 @@ abstract final class AppColors {
         ? const Color(0xFF000000)
         : const Color(0xFFFFFFFF);
     var candidate = from;
-    for (var i = 0; i < 12 && contrast(candidate, background) < minContrast; i++) {
+    for (
+      var i = 0;
+      i < 12 && contrast(candidate, background) < minContrast;
+      i++
+    ) {
       candidate = Color.lerp(candidate, target, 0.25)!;
     }
-    return contrast(candidate, background) >= minContrast
-        ? candidate
-        : target;
+    return contrast(candidate, background) >= minContrast ? candidate : target;
   }
 
   /// 「什么都没有」的透明色。CalendarStyle 这类 const 容器里也要有名字。
@@ -86,8 +84,39 @@ abstract final class AppColors {
   static const Color warning = Color(0xFFE8A33D);
   static const Color danger = Color(0xFFD9534F);
 
-  static const Color surfaceLight = Color(0xFFF6F7F9);
-  static const Color surfaceDark = Color(0xFF14161A);
+  // Flutter Shadcn UI 的 Slate 中性色；品牌与状态色仍由 Material 生成。
+  static const Color surfaceLight = Color(0xFFF4F6FA);
+  static const Color surfaceDark = Color(0xFF0B1120);
+
+  static const ColorScheme neutralLight = ColorScheme.light(
+    surface: surfaceLight,
+    onSurface: Color(0xFF0F172A),
+    onSurfaceVariant: Color(0xFF475569),
+    surfaceDim: Color(0xFFE2E8F0),
+    surfaceBright: Color(0xFFFFFFFF),
+    surfaceContainerLowest: Color(0xFFFFFFFF),
+    surfaceContainerLow: Color(0xFFFFFFFF),
+    surfaceContainer: Color(0xFFF1F5F9),
+    surfaceContainerHigh: Color(0xFFEAF0F6),
+    surfaceContainerHighest: Color(0xFFE2E8F0),
+    outline: Color(0xFF718096),
+    outlineVariant: Color(0xFFBDC9D8),
+  );
+
+  static const ColorScheme neutralDark = ColorScheme.dark(
+    surface: surfaceDark,
+    onSurface: Color(0xFFE2E8F0),
+    onSurfaceVariant: Color(0xFFA6B5CC),
+    surfaceDim: Color(0xFF080D18),
+    surfaceBright: Color(0xFF263449),
+    surfaceContainerLowest: Color(0xFF0F172A),
+    surfaceContainerLow: Color(0xFF111B2E),
+    surfaceContainer: Color(0xFF162238),
+    surfaceContainerHigh: Color(0xFF1B2A41),
+    surfaceContainerHighest: Color(0xFF263449),
+    outline: Color(0xFF7C8CA4),
+    outlineVariant: Color(0xFF33455F),
+  );
 
   /// 日历 / 课表里的「考试」色。
   ///

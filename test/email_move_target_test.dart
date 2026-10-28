@@ -3,7 +3,7 @@
 // 这两条钉住「不发这种请求」。
 import 'package:bjtuselfserviceaio/data/remote/api/email_api.dart';
 import 'package:bjtuselfserviceaio/features/email/email_controller.dart';
-import 'package:bjtuselfserviceaio/features/email/email_models.dart';
+import 'package:bjtuselfserviceaio/data/models/email/email_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeEmailApi implements EmailApi {

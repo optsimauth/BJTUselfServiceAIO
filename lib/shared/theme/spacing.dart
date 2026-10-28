@@ -43,21 +43,30 @@ abstract final class AppRadius {
   /// 课表格子上的次级徽章。
   static const BorderRadius badge = BorderRadius.all(Radius.circular(10));
 
-  /// 列表项、输入框、对话框按钮。
+  /// 列表项、菜单、SnackBar。
   static const BorderRadius md = BorderRadius.all(Radius.circular(12));
 
-  /// 按钮：FilledButton / OutlinedButton 的统一形状。
-  static const BorderRadius control = BorderRadius.all(Radius.circular(14));
+  /// 按钮与输入：沿用 Shadcn 的克制圆角，触控尺寸单独保证。
+  static const BorderRadius control = BorderRadius.all(Radius.circular(8));
 
   /// 卡片。
-  static const BorderRadius lg = BorderRadius.all(Radius.circular(16));
+  static const BorderRadius lg = BorderRadius.all(Radius.circular(12));
 
   /// 对话框、底部弹层、摘要卡。
-  static const BorderRadius sheet = BorderRadius.all(Radius.circular(20));
+  static const BorderRadius sheet = BorderRadius.all(Radius.circular(16));
 }
 
-/// 触控目标下限。Apple HIG / Material 都要求可点区域不小于这个尺寸，
+/// 项目的跨平台触控下限，采用 Material 的 48dp（HIG 的下限为 44pt）。
 /// 视觉上小一点没关系，命中区域不能小。
 abstract final class AppTouch {
-  static const double minimum = 44;
+  static const double minimum = 48;
+}
+
+/// 窗口断点来自 Flutter / Material，自适应依据是可用空间而不是设备名称。
+abstract final class AppLayout {
+  static const double railMinWidth = 600;
+  static const double extendedRailMinWidth = 1200;
+  static const double contentMaxWidth = 840;
+  static const double formMaxWidth = 440;
+  static const double boardMaxWidth = 1200;
 }

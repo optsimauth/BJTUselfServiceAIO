@@ -13,6 +13,7 @@ import '../../shared/widgets/buttons/app_buttons.dart';
 import 'exam_controller.dart';
 import 'exam_timeline.dart';
 import '../../shared/theme/spacing.dart';
+import '../../shared/widgets/page_width.dart';
 
 /// 考试安排页。
 ///
@@ -98,27 +99,30 @@ class _ExamPageState extends State<ExamPage> {
           ),
         ],
       ),
-      body: ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) => Column(
-          children: [
-            _ExamFilterBar(controller: _controller),
-            Expanded(
-              child: AsyncView<List<ExamSchedule>>(
-                state: _controller.state,
-                onRetry: _controller.refresh,
-                loadingMessage: '正在同步考试安排…',
-                isEmpty: (exams) => exams.isEmpty,
-                emptyBuilder: (_) => const EmptyExamView(),
-                builder: (context, _) => _ExamBody(
-                  controller: _controller,
-                  now: _now,
+      body: PageWidth(
+        maxWidth: AppLayout.contentMaxWidth,
+        child: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) => Column(
+            children: [
+              _ExamFilterBar(controller: _controller),
+              Expanded(
+                child: AsyncView<List<ExamSchedule>>(
+                  state: _controller.state,
                   onRetry: _controller.refresh,
-                  scrollController: _controller.scrollController,
+                  loadingMessage: '正在同步考试安排…',
+                  isEmpty: (exams) => exams.isEmpty,
+                  emptyBuilder: (_) => const EmptyExamView(),
+                  builder: (context, _) => _ExamBody(
+                    controller: _controller,
+                    now: _now,
+                    onRetry: _controller.refresh,
+                    scrollController: _controller.scrollController,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -154,7 +158,12 @@ class _ExamBody extends StatelessWidget {
       onRefresh: onRetry,
       child: ListView(
         controller: scrollController,
-        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.xl,
+        ),
         children: [
           _NextExamCard(controller: controller, now: now),
           for (final group in groups) ...[
@@ -189,18 +198,13 @@ class _NextExamCard extends StatelessWidget {
     final total = controller.state.valueOrNull?.length ?? 0;
 
     return Container(
+      key: const ValueKey('exam-summary'),
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         borderRadius: AppRadius.lg,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primary,
-            Color.lerp(scheme.primary, scheme.surface, 0.35) ?? scheme.primary,
-          ],
-        ),
+        color: scheme.surfaceContainerLow,
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: next == null
           ? Column(
@@ -208,23 +212,22 @@ class _NextExamCard extends StatelessWidget {
               children: [
                 Text(
                   '考试安排',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: scheme.onPrimary.withValues(alpha: 0.85),
-                  ),
+                  style: Theme.of(context).textTheme.labelLarge
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '共 $total 场',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: scheme.onPrimary,
+                    color: scheme.onSurface,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: AppSpacing.sm),
                 Text(
                   '暂时没有待考的考试',
                   style: AppTypography.captionMuted.copyWith(
-                    color: scheme.onPrimary,
+                    color: scheme.onSurface,
                   ),
                 ),
               ],
@@ -234,9 +237,8 @@ class _NextExamCard extends StatelessWidget {
               children: [
                 Text(
                   '下一场 · ${next.timing.countdownLabel(now)}',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: scheme.onPrimary.withValues(alpha: 0.85),
-                  ),
+                  style: Theme.of(context).textTheme.labelLarge
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -244,15 +246,15 @@ class _NextExamCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: scheme.onPrimary,
+                    color: scheme.onSurface,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: AppSpacing.sm),
                 Text(
                   _whenAndWhere(next),
                   style: AppTypography.captionMuted.copyWith(
-                    color: scheme.onPrimary,
+                    color: scheme.onSurface,
                   ),
                 ),
               ],
@@ -278,21 +280,30 @@ class _ExamFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: ListView.separated(
+    final filters = controller.availableFilters;
+    return ConstrainedBox(
+      // 52 是 1 倍字号下一行 chip 的高度，不是硬盒子：系统字号放大要能长高
+      // （docs/UI_SPEC.md 第 2 节 layout-no-fixed-sizes）。
+      constraints: const BoxConstraints(minHeight: 52),
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-        itemCount: controller.availableFilters.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final filter = controller.availableFilters[index];
-          return ChoiceChip(
-            label: Text(filter.label),
-            selected: filter == controller.filter,
-            onSelected: (_) => controller.selectFilter(filter),
-          );
-        },
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < filters.length; index++) ...[
+              if (index > 0) const SizedBox(width: AppSpacing.sm),
+              ChoiceChip(
+                label: Text(filters[index].label),
+                selected: filters[index] == controller.filter,
+                onSelected: (_) => controller.selectFilter(filters[index]),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -307,7 +318,12 @@ class _GroupHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.xs, AppSpacing.md, AppSpacing.xs, AppSpacing.xs),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xs,
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.xs,
+      ),
       child: Row(
         children: [
           Container(
@@ -320,7 +336,7 @@ class _GroupHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(group.title, style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpacing.sm),
           Text(
             '${group.count}',
             style: AppTypography.captionMuted.copyWith(
@@ -375,7 +391,7 @@ class _ExamCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.md),
               _InfoLine(
                 icon: Icons.category_outlined,
                 text: entry.exam.examType.isEmpty ? '考试' : entry.exam.examType,
@@ -446,7 +462,10 @@ class _Remark extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: AppRadius.sm,

@@ -3,8 +3,8 @@ import 'dart:convert';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/request_manager.dart';
 import '../../../core/utils/logger.dart';
-import '../../../features/email/email_models.dart';
-import '../../../features/email/email_parser.dart';
+import '../../models/email/email_models.dart';
+import '../parsers/email_parser.dart';
 
 class EmailApi {
   EmailApi(this._request);

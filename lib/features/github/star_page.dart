@@ -9,6 +9,10 @@ import '../../shared/theme/colors.dart';
 import '../../shared/theme/spacing.dart';
 import '../../shared/widgets/cards/app_card.dart';
 import '../../shared/widgets/error_text.dart';
+import '../../shared/widgets/page_width.dart';
+import '../../shared/widgets/buttons/app_buttons.dart';
+import '../../shared/widgets/app_status_view.dart';
+import '../../shared/widgets/loading/app_loading.dart';
 
 /// 项目 Star 变化页。
 ///
@@ -35,7 +39,9 @@ class _StarPageState extends State<StarPage> {
 
   Future<void> _refresh() async {
     final future = _repository.fetchSnapshot(AppConstants.githubRepository);
-    setState(() => _snapshot = future);
+    setState(() {
+      _snapshot = future;
+    });
     try {
       await future;
     } catch (_) {
@@ -47,6 +53,7 @@ class _StarPageState extends State<StarPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const PageBackButton(),
         title: const Text('项目 Star'),
         actions: [
           IconButton(
@@ -56,26 +63,28 @@ class _StarPageState extends State<StarPage> {
           ),
         ],
       ),
-      body: FutureBuilder<RepoSnapshot>(
-        future: _snapshot,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(errorText(snapshot.error!), textAlign: TextAlign.center),
-                  const SizedBox(height: 16),
-                  FilledButton(onPressed: _refresh, child: const Text('重试')),
-                ],
-              ),
-            );
-          }
-          return _Body(snapshot: snapshot.requireData, onRefresh: _refresh);
-        },
+      body: PageWidth(
+        maxWidth: AppLayout.contentMaxWidth,
+        child: FutureBuilder<RepoSnapshot>(
+          future: _snapshot,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const AppLoading(message: '正在读取项目动态…');
+            }
+            if (snapshot.hasError) {
+              return AppStatusView(
+                icon: Icons.star_outline,
+                title: '项目动态暂时无法读取',
+                message: errorText(snapshot.error!),
+                action: FilledButton(
+                  onPressed: _refresh,
+                  child: const Text('重试'),
+                ),
+              );
+            }
+            return _Body(snapshot: snapshot.requireData, onRefresh: _refresh);
+          },
+        ),
       ),
     );
   }
@@ -125,28 +134,31 @@ class _StarCount extends StatelessWidget {
         children: [
           Text(
             '当前 Star',
-            style: theme.textTheme.labelLarge
-                ?.copyWith(color: theme.colorScheme.primary),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
             children: [
               Text(
                 '${snapshot.stars}',
-                style: theme.textTheme.displayMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.displayMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(width: AppSpacing.md),
               _DeltaChip(delta: snapshot.delta),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             '更新于 ${DateFormat('MM-dd HH:mm').format(snapshot.latest.at)}',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -165,9 +177,8 @@ class _DeltaChip extends StatelessWidget {
     if (delta == 0) {
       return Text(
         '与上次持平',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+        style: Theme.of(context).textTheme.bodySmall
+            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
       );
     }
     final up = delta > 0;
@@ -179,13 +190,13 @@ class _DeltaChip extends StatelessWidget {
           size: 16,
           color: up ? AppColors.success : Theme.of(context).colorScheme.error,
         ),
-        const SizedBox(width: 2),
+        const SizedBox(width: AppSpacing.xs),
         Text(
           '${delta.abs()}',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: up ? AppColors.success : Theme.of(context).colorScheme.error,
-                fontWeight: FontWeight.w600,
-              ),
+            color: up ? AppColors.success : Theme.of(context).colorScheme.error,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -208,8 +219,9 @@ class _TrendCard extends StatelessWidget {
         children: [
           Text(
             '变化趋势',
-            style: theme.textTheme.labelLarge
-                ?.copyWith(color: theme.colorScheme.primary),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           SizedBox(
@@ -219,8 +231,9 @@ class _TrendCard extends StatelessWidget {
                 ? Center(
                     child: Text(
                       '还在攒数据，多开几次就有曲线了',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   )
                 : CustomPaint(
@@ -235,8 +248,9 @@ class _TrendCard extends StatelessWidget {
           Text(
             '共 ${points.length} 次采样 · 区间内 '
             '${snapshot.totalDelta >= 0 ? '+' : ''}${snapshot.totalDelta}',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -258,9 +272,8 @@ class _RepoCard extends StatelessWidget {
         if (url == null) return;
         if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
           if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('打不开浏览器')),
-          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('打不开浏览器')));
         }
       },
       child: Column(
@@ -329,9 +342,14 @@ class _SparklinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _paintGrid(canvas, size);
     final line = _linePath(size);
-    canvas.drawPath(line, Paint()..color = color..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeJoin = StrokeJoin.round);
+    canvas.drawPath(
+      line,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeJoin = StrokeJoin.round,
+    );
     _paintEndDot(canvas, size);
   }
 

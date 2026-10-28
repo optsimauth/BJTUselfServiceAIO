@@ -1,6 +1,6 @@
 import '../../../core/state/data_sync_manager.dart';
 import '../../../core/state/sync_result.dart';
-import '../../../data/models/courseware/courseware_model.dart';
+import 'courseware_model.dart';
 
 /// 课件树的纯计算部分：计数、搜索、按课程分组。
 ///

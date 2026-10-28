@@ -1,4 +1,4 @@
-import 'email_models.dart';
+import '../../data/models/email/email_models.dart';
 
 /// 邮件列表的过滤 + 排序。纯函数，方便单测。
 ///

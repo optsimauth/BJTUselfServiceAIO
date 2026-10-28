@@ -12,6 +12,7 @@ import '../data/remote/api/email_api.dart';
 import '../data/remote/api/auth_api.dart';
 import '../data/remote/api/calendar_api.dart';
 import '../data/remote/api/classroom_api.dart';
+import '../data/remote/api/status_api.dart';
 import '../data/remote/api/course_api.dart';
 import '../data/remote/api/courseware_api.dart';
 import '../data/remote/api/exam_api.dart';
@@ -29,6 +30,7 @@ import '../data/repositories/grade_repository.dart';
 import '../data/repositories/github_repository.dart';
 import '../data/repositories/homework_repository.dart';
 import '../data/repositories/platform_course_repository.dart';
+import '../data/repositories/status_repository.dart';
 import '../data/repositories/sync_coordinator.dart';
 import '../features/course/course_controller.dart';
 import '../features/exam/exam_controller.dart';
@@ -36,7 +38,6 @@ import '../features/grade/grade_controller.dart';
 import '../features/homework/homework_controller.dart';
 import '../features/email/email_controller.dart';
 import '../features/courseware/courseware_controller.dart';
-import '../services/captcha/captcha_service.dart';
 import '../services/download/download_service.dart';
 import '../services/file_picker/file_picker_service.dart';
 import '../services/update/update_service.dart';
@@ -58,7 +59,6 @@ class ServiceLocator {
     required this.gradeLocalStore,
     required this.examLocalStore,
     required this.homeworkLocalStore,
-    required this.captchaService,
     required this.downloadService,
     required this.filePickerService,
     required this.updateService,
@@ -71,6 +71,7 @@ class ServiceLocator {
     required this.homeworkRepository,
     required this.coursewareRepository,
     required this.classroomRepository,
+    required this.statusRepository,
     required this.platformCourseRepository,
     required this.syncCoordinator,
     required this.courseController,
@@ -94,7 +95,6 @@ class ServiceLocator {
   final ExamLocalStore examLocalStore;
   final HomeworkLocalStore homeworkLocalStore;
 
-  final CaptchaService captchaService;
   final DownloadService downloadService;
   final FilePickerService filePickerService;
   final UpdateService updateService;
@@ -108,6 +108,7 @@ class ServiceLocator {
   final HomeworkRepository homeworkRepository;
   final CoursewareRepository coursewareRepository;
   final ClassroomRepository classroomRepository;
+  final StatusRepository statusRepository;
   final PlatformCourseRepository platformCourseRepository;
   final SyncCoordinator syncCoordinator;
 
@@ -116,10 +117,10 @@ class ServiceLocator {
   final GradeController gradeController;
   final ExamController examController;
   final HomeworkController homeworkController;
-  final EmailController emailController;
+  EmailController emailController;
 
   /// 课件树常驻内存：进页面直接看到上次的内容，不用每次重新解析缓存。
-  final CoursewareController coursewareController;
+  CoursewareController coursewareController;
 
   static Future<ServiceLocator> bootstrap({
     AppConfig config = AppConfig.defaults,
@@ -132,6 +133,7 @@ class ServiceLocator {
 
     // 登录流程本身要发「不登录也能发」的请求，所以这里晚一点再接上真正的门闸。
     late final AccountRepository accountRepository;
+    late final ServiceLocator locator;
     late final EmailApi emailApi;
     final requestManager = RequestManager(
       dio: HttpClientFactory.create(cookieManager: cookieManager),
@@ -146,7 +148,6 @@ class ServiceLocator {
     final examLocalStore = ExamLocalStore(database.examDao);
     final homeworkLocalStore = HomeworkLocalStore(database.homeworkDao);
 
-    final captchaService = CaptchaService();
     emailApi = EmailApi(requestManager);
 
     final downloadService = DownloadService(
@@ -179,15 +180,22 @@ class ServiceLocator {
     // 登出时数据库和 Cookie 自己会清，但这两个内存缓存得手动通知。
     accountRepository = AccountRepository(
       api: AuthApi(requestManager),
-      captcha: captchaService,
       cookieManager: cookieManager,
       secureStorage: secureStorage,
       preferences: preferences,
       database: database,
       onSessionCleared: () {
+        requestManager.invalidateSession();
         platformSession.invalidate();
         platformCourseRepository.invalidate();
         emailApi.invalidateSession();
+        locator.gradeController.updateStudentId('');
+        locator.emailController.dispose();
+        locator.emailController = EmailController(api: emailApi);
+        locator.coursewareController.dispose();
+        locator.coursewareController = CoursewareController(
+          repository: locator.coursewareRepository,
+        );
       },
     );
     final courseRepository = CourseRepository(
@@ -225,6 +233,7 @@ class ServiceLocator {
     final classroomRepository = ClassroomRepository(
       api: ClassroomApi(requestManager),
     );
+    final statusRepository = StatusRepository(api: StatusApi(requestManager));
 
     final emailController = EmailController(api: emailApi);
 
@@ -245,6 +254,11 @@ class ServiceLocator {
       repository: gradeRepository,
       studentId: secureStorage.cachedCredentials?.username ?? '',
     );
+    accountRepository.sessionState.addListener(() {
+      gradeController.updateStudentId(
+        secureStorage.cachedCredentials?.username ?? '',
+      );
+    });
     final examController = ExamController(repository: examRepository);
     final homeworkController = HomeworkController(
       repository: homeworkRepository,
@@ -260,7 +274,7 @@ class ServiceLocator {
       homeworkController.hydrate(),
     ]);
 
-    return ServiceLocator._(
+    locator = ServiceLocator._(
       config: config,
       preferences: preferences,
       secureStorage: secureStorage,
@@ -272,7 +286,6 @@ class ServiceLocator {
       gradeLocalStore: gradeLocalStore,
       examLocalStore: examLocalStore,
       homeworkLocalStore: homeworkLocalStore,
-      captchaService: captchaService,
       downloadService: downloadService,
       filePickerService: filePickerService,
       updateService: updateService,
@@ -285,6 +298,7 @@ class ServiceLocator {
       homeworkRepository: homeworkRepository,
       coursewareRepository: coursewareRepository,
       classroomRepository: classroomRepository,
+      statusRepository: statusRepository,
       platformCourseRepository: platformCourseRepository,
       syncCoordinator: syncCoordinator,
       courseController: courseController,
@@ -294,6 +308,7 @@ class ServiceLocator {
       emailController: emailController,
       coursewareController: coursewareController,
     );
+    return locator;
   }
 
   Future<void> dispose() async {
@@ -305,6 +320,9 @@ class ServiceLocator {
     coursewareController.dispose();
     syncCoordinator.dispose();
     downloadService.dispose();
+    accountRepository.dispose();
+    preferences.dispose();
+    requestManager.dio.close(force: true);
     await database.close();
   }
 }

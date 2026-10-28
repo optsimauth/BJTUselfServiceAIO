@@ -24,7 +24,7 @@ abstract final class ApiConstants {
       'https://api.github.com/repos/$repository';
 
   // ---- CAS / SSO（验证码就挂在这条链上）----
-  static const String ssoUrl = '$misHost/auth/sso/?next=/';
+  static const String ssoUrl = '$misHost/auth/nsso/?next=/home/';
   static const String casHost = 'https://cas.bjtu.edu.cn';
   static const String casLoginPath = '$casHost/auth/login/';
 
@@ -34,6 +34,10 @@ abstract final class ApiConstants {
 
   // ---- 登录相关 ----
   static const String misLoginPage = '$misHost/login';
+
+  /// MIS 首页状态：`ecard_yuer` 校园卡余额、`net_fee` 校园网余额、
+  /// `newmail_count` 未读邮件数。旧项目 `MisDataManager.getStatus` 用同一地址。
+  static const String misStatusUrl = '$misHost/osys_ajax_wrap/';
 
   /// App 内嵌 WebView 打开的教务首页。
   static const String misHomeUrl = '$misHost/home/';

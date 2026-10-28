@@ -25,7 +25,7 @@ class PlatformCourseRepository {
 
     final code = await _currentSemesterCode();
     if (code.isEmpty) {
-      throw StateError('没能查到当前学期');
+      throw StateError('没能查到当前学期号（queryCurrentXq），课程清单无从查起');
     }
     final raw = await _api.fetchCourseListRaw(
       semesterCode: code,
@@ -33,7 +33,12 @@ class PlatformCourseRepository {
     );
     final courses = CourseParser.parsePlatformCourseList(raw);
     if (courses.isEmpty) {
-      throw StateError('平台没有返回本学期课程');
+      // 空清单也可能是会话过期：平台把请求当匿名处理时同样回 200 + 空列表。
+      // 丢掉会话，让下一次重试重新握手，而不是拿着同一个死 sessionid 反复空转。
+      _session.invalidate();
+      throw StateError(
+        '课程平台在学期 $code 下返回 0 门课：可能这学期确实没选课，也可能接口变了',
+      );
     }
     _cache = courses;
     return courses;

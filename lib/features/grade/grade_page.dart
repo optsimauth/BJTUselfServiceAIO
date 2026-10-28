@@ -13,6 +13,7 @@ import 'grade_math.dart';
 import 'grade_sort.dart';
 import 'grade_view.dart';
 import '../../shared/theme/spacing.dart';
+import '../../shared/widgets/page_width.dart';
 
 /// 成绩页。
 ///
@@ -147,44 +148,53 @@ class _GradePageState extends State<GradePage> {
           ),
         ],
       ),
-      body: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) => Column(
-          children: [
-            _GradeActionRow(
-              controller: controller,
-              selectionMode: _selectionMode,
-              onToggleSelectionMode: () =>
-                  setState(() => _selectionMode = !_selectionMode),
-            ),
-            if (_selectionMode) _SelectionToolbar(controller: controller),
-            Expanded(
-              child: AsyncView<List<Grade>>(
-                state: controller.state,
-                onRetry: controller.refresh,
-                loadingMessage: '正在同步成绩…',
-                isEmpty: (grades) => grades.isEmpty,
-                emptyBuilder: (_) =>
-                    _EmptyGradesView(onRefresh: controller.refresh),
-                builder: (context, _) => _GradeListBody(
-                  controller: controller,
-                  scroll: controller.scrollController,
-                  selectionMode: _selectionMode,
-                  onClearFilter: controller.clearFilter,
+      body: PageWidth(
+        maxWidth: AppLayout.contentMaxWidth,
+        child: ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) => Column(
+            children: [
+              _GradeActionRow(
+                controller: controller,
+                selectionMode: _selectionMode,
+                onToggleSelectionMode: () =>
+                    setState(() => _selectionMode = !_selectionMode),
+              ),
+              if (_selectionMode) _SelectionToolbar(controller: controller),
+              Expanded(
+                child: AsyncView<List<Grade>>(
+                  state: controller.state,
+                  onRetry: controller.refresh,
+                  loadingMessage: '正在同步成绩…',
+                  isEmpty: (grades) => grades.isEmpty,
+                  emptyBuilder: (_) =>
+                      _EmptyGradesView(onRefresh: controller.refresh),
+                  builder: (context, _) => _GradeListBody(
+                    controller: controller,
+                    scroll: controller.scrollController,
+                    selectionMode: _selectionMode,
+                    onClearFilter: controller.clearFilter,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButton: _showFab
           ? FloatingActionButton.small(
               tooltip: '回到顶部',
-              onPressed: () => controller.scrollController.animateTo(
-                0,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-              ),
+              onPressed: () {
+                if (MediaQuery.disableAnimationsOf(context)) {
+                  controller.scrollController.jumpTo(0);
+                } else {
+                  controller.scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                  );
+                }
+              },
               child: const Icon(Icons.keyboard_arrow_up),
             )
           : null,
@@ -239,7 +249,12 @@ class _GradeListBody extends StatelessWidget {
       onRefresh: controller.refresh,
       child: ListView(
         controller: scroll,
-        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.xl,
+        ),
         children: [
           _GpaCard(controller: controller, selectionMode: selectionMode),
           const SizedBox(height: 8),
@@ -283,14 +298,8 @@ class _GpaCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         borderRadius: AppRadius.lg,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primary,
-            Color.lerp(scheme.primary, scheme.surface, 0.35) ?? scheme.primary,
-          ],
-        ),
+        color: scheme.surfaceContainerLow,
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,17 +309,17 @@ class _GpaCard extends StatelessWidget {
               Text(
                 selectionMode ? '自选课程加权平均分' : '加权平均分',
                 style: Theme.of(context).textTheme.labelLarge
-                    ?.copyWith(color: scheme.onPrimary.withValues(alpha: 0.85)),
+                    ?.copyWith(color: scheme.onSurfaceVariant),
               ),
               const Spacer(),
               Text(
                 '统计 ${gpa.countedCourses} 门',
                 style: Theme.of(context).textTheme.labelSmall
-                    ?.copyWith(color: scheme.onPrimary.withValues(alpha: 0.75)),
+                    ?.copyWith(color: scheme.onSurfaceVariant),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpacing.sm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -318,7 +327,7 @@ class _GpaCard extends StatelessWidget {
               Text(
                 average == null ? '—' : average.toStringAsFixed(1),
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: scheme.onPrimary,
+                  color: scheme.onSurface,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -326,18 +335,17 @@ class _GpaCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   '分',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onPrimary.withValues(alpha: 0.85),
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpacing.sm),
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: scheme.onPrimary.withValues(alpha: 0.9)),
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -374,8 +382,9 @@ class _GradeActionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = controller.semesterOptions;
-    return SizedBox(
-      height: 56,
+    return ConstrainedBox(
+      // 56 是 1 倍字号下筛选行的高度，不是硬盒子：2 倍字号要能长高。
+      constraints: const BoxConstraints(minHeight: 56),
       child: Row(
         children: [
           Expanded(
@@ -383,7 +392,10 @@ class _GradeActionRow extends StatelessWidget {
             // 测试里也能稳定点到每一个（ListView 懒构建会把屏外的芯片省掉）。
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
               child: Row(
                 children: [
                   FilterChip(
@@ -440,7 +452,12 @@ class _SelectionToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -506,7 +523,10 @@ class _GradeCard extends StatelessWidget {
         : null;
     return AppCard(
       onTap: onDetail,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -522,7 +542,7 @@ class _GradeCard extends StatelessWidget {
                     ?.copyWith(color: scoreColor, fontWeight: FontWeight.w700),
               ),
               if (badge != null) ...[
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpacing.xs),
                 // 分数数字本身用满色（它在卡片底上，不是淡底上）；
                 // 徽章是淡底，字色必须另算，否则淡洗上的字会糊掉。
                 Builder(
@@ -597,7 +617,10 @@ class _InfoChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: AppRadius.sm,
@@ -607,10 +630,16 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: scheme.onSurfaceVariant),
           const SizedBox(width: 4),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
+          // 2 倍字号下教师名 / 学期名会把 chip 撑破 Wrap：给 Text 留收缩
+          // 余地，超宽就省略号（Wrap 自己会换行，不会撑出屏幕）。
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
           ),
         ],
       ),

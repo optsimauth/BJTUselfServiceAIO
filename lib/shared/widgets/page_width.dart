@@ -29,7 +29,11 @@ class PageWidth extends StatelessWidget {
           color: scheme.surface,
           child: Align(
             alignment: Alignment.topCenter,
-            child: SizedBox(width: width, height: constraints.maxHeight, child: child),
+            child: SizedBox(
+              width: width,
+              height: constraints.maxHeight,
+              child: child,
+            ),
           ),
         );
       },

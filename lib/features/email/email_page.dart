@@ -6,9 +6,10 @@ import '../../app/service_locator.dart';
 import '../../core/model/async_state.dart';
 import '../../core/network/network_exception.dart';
 import 'email_controller.dart';
-import 'email_models.dart';
+import '../../data/models/email/email_models.dart';
 import 'email_widgets.dart';
 import '../../shared/theme/spacing.dart';
+import '../../shared/widgets/page_width.dart';
 
 class EmailPage extends StatefulWidget {
   const EmailPage({super.key});
@@ -48,25 +49,28 @@ class _EmailPageState extends State<EmailPage> {
         title: Text(_title),
         actions: _actions,
       ),
-      body: switch (_mode) {
-        _EmailMode.list => _MailboxList(
-          controller: _controller,
-          onOpen: _openMessage,
-          onCompose: _startCompose,
-        ),
-        _EmailMode.detail => _MailboxDetail(
-          message: _controller.message,
-          loading: _opening,
-          onReply: _startReply,
-        ),
-        _EmailMode.compose => _MailboxCompose(
-          draft: _controller.draft,
-          loading: _startingCompose,
-          onCancel: _cancelCompose,
-          onSend: _sendDraft,
-          onChanged: _controller.updateDraft,
-        ),
-      },
+      body: PageWidth(
+        maxWidth: AppLayout.boardMaxWidth,
+        child: switch (_mode) {
+          _EmailMode.list => _MailboxList(
+            controller: _controller,
+            onOpen: _openMessage,
+            onCompose: _startCompose,
+          ),
+          _EmailMode.detail => _MailboxDetail(
+            message: _controller.message,
+            loading: _opening,
+            onReply: _startReply,
+          ),
+          _EmailMode.compose => _MailboxCompose(
+            draft: _controller.draft,
+            loading: _startingCompose,
+            onCancel: _cancelCompose,
+            onSend: _sendDraft,
+            onChanged: _controller.updateDraft,
+          ),
+        },
+      ),
     ),
   );
 
@@ -327,11 +331,8 @@ class _ListProgress extends StatelessWidget {
   final bool showing;
 
   @override
-  Widget build(BuildContext context) => AnimatedSize(
-    duration: const Duration(milliseconds: 120),
-    curve: Curves.easeOut,
-    alignment: Alignment.topCenter,
-    child: SizedBox(
+  Widget build(BuildContext context) {
+    final content = SizedBox(
       height: showing ? 2 : 0,
       width: double.infinity,
       child: showing
@@ -340,9 +341,17 @@ class _ListProgress extends StatelessWidget {
               backgroundColor: Theme.of(context).colorScheme.surface,
             )
           : null,
-    ),
-  );
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return content;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      alignment: Alignment.topCenter,
+      child: content,
+    );
+  }
 }
+
 class _MailToolbar extends StatelessWidget {
   const _MailToolbar({required this.controller, required this.showPicker});
 
@@ -360,20 +369,24 @@ class _MailToolbar extends StatelessWidget {
         MailListToolbar(controller: controller, folderName: folder.name),
         if (showPicker) _FolderPicker(controller: controller),
         Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.sm),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.xs,
+            AppSpacing.md,
+            AppSpacing.sm,
+          ),
           child: TextField(
             style: Theme.of(context).textTheme.bodySmall,
             decoration: InputDecoration(
               isDense: true,
-              hintText: '搜索邮件（发件人 / 主题 / 正文）',
+              labelText: '搜索邮件',
+              hintText: '发件人 / 主题 / 正文',
               prefixIcon: const Icon(Icons.search, size: 18),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.sm,
                 vertical: AppSpacing.sm,
               ),
-              border: OutlineInputBorder(
-                borderRadius: AppRadius.sm,
-              ),
+              border: OutlineInputBorder(borderRadius: AppRadius.sm),
             ),
             onChanged: (value) => controller.updateFilter(
               controller.filter.copyWith(query: value),
@@ -392,7 +405,12 @@ class _FolderPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.xs),
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      0,
+      AppSpacing.md,
+      AppSpacing.xs,
+    ),
     child: PopupMenuButton<int>(
       tooltip: '切换文件夹',
       onSelected: controller.selectFolder,
@@ -468,7 +486,12 @@ class _MailList extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.xl,
+      ),
       itemCount: messages.length + 1,
       itemBuilder: (context, index) {
         if (index == messages.length) {
@@ -565,13 +588,18 @@ class _MailRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(top: AppSpacing.sm),
-      color: selected ? scheme.secondaryContainer : null,
+      color: selected ? scheme.primaryContainer : null,
       child: InkWell(
         onTap: onTap,
         onLongPress: onToggleSelect,
         borderRadius: AppRadius.md,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.sm, AppSpacing.md, AppSpacing.xs, AppSpacing.md),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.sm,
+            AppSpacing.md,
+            AppSpacing.xs,
+            AppSpacing.md,
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -579,7 +607,10 @@ class _MailRow extends StatelessWidget {
                 Checkbox(value: selected, onChanged: (_) => onToggleSelect())
               else
                 Padding(
-                  padding: const EdgeInsets.only(left: AppSpacing.xs, top: AppSpacing.md),
+                  padding: const EdgeInsets.only(
+                    left: AppSpacing.xs,
+                    top: AppSpacing.md,
+                  ),
                   child: CircleAvatar(
                     radius: 18,
                     backgroundColor: message.isRead
@@ -612,11 +643,13 @@ class _MailRow extends StatelessWidget {
                               shape: BoxShape.circle,
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: AppSpacing.sm),
                         ],
                         if (message.isFlagged)
                           Padding(
-                            padding: const EdgeInsets.only(right: AppSpacing.xs),
+                            padding: const EdgeInsets.only(
+                              right: AppSpacing.xs,
+                            ),
                             child: Icon(
                               Icons.flag,
                               size: 14,
@@ -625,7 +658,9 @@ class _MailRow extends StatelessWidget {
                           ),
                         if (message.isTop)
                           Padding(
-                            padding: const EdgeInsets.only(right: AppSpacing.xs),
+                            padding: const EdgeInsets.only(
+                              right: AppSpacing.xs,
+                            ),
                             child: Icon(
                               Icons.push_pin,
                               size: 14,
@@ -634,7 +669,9 @@ class _MailRow extends StatelessWidget {
                           ),
                         if (message.isTodo)
                           Padding(
-                            padding: const EdgeInsets.only(right: AppSpacing.xs),
+                            padding: const EdgeInsets.only(
+                              right: AppSpacing.xs,
+                            ),
                             child: Icon(
                               Icons.schedule,
                               size: 14,
@@ -654,11 +691,12 @@ class _MailRow extends StatelessWidget {
                                 ),
                           ),
                         ),
-                        Text(
-                          message.dateText,
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
                       ],
+                    ),
+                    Text(
+                      message.dateText,
+                      style: Theme.of(context).textTheme.labelSmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -720,7 +758,12 @@ class _MailboxDetail extends StatelessWidget {
     }
     final mail = message!;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.xl,
+      ),
       children: [
         Text(
           mail.subject.isEmpty ? '无主题' : mail.subject,
@@ -812,7 +855,10 @@ class _MailTable extends StatelessWidget {
           TableRow(
             children: [
               for (final cell in row)
-                Padding(padding: const EdgeInsets.all(AppSpacing.sm), child: Text(cell)),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: Text(cell),
+                ),
             ],
           ),
       ],
@@ -879,7 +925,12 @@ class _MailboxComposeState extends State<_MailboxCompose> {
       return const Center(child: CircularProgressIndicator());
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.xl,
+      ),
       children: [
         _ComposeField(
           controller: _to,
@@ -887,28 +938,28 @@ class _MailboxComposeState extends State<_MailboxCompose> {
           hint: '多个地址用逗号分隔',
           onChanged: () => _emit(draft),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpacing.md),
         _ComposeField(
           controller: _cc,
           label: '抄送',
           hint: '可选',
           onChanged: () => _emit(draft),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpacing.md),
         _ComposeField(
           controller: _bcc,
           label: '密送',
           hint: '可选',
           onChanged: () => _emit(draft),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpacing.md),
         _ComposeField(
           controller: _subject,
           label: '主题',
           hint: '无主题',
           onChanged: () => _emit(draft),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpacing.md),
         TextField(
           controller: _body,
           minLines: 12,
@@ -930,14 +981,14 @@ class _MailboxComposeState extends State<_MailboxCompose> {
                 label: const Text('取消'),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: FilledButton.icon(
                 onPressed: _sending ? null : _send,
                 icon: _sending
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
+                        width: AppSpacing.xl,
+                        height: AppSpacing.xl,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.send),

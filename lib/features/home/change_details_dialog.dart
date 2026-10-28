@@ -64,7 +64,7 @@ class _ChangeDetailCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.xs),
       decoration: BoxDecoration(
         border: Border.all(color: scheme.outlineVariant),
-        borderRadius: AppRadius.badge,
+        borderRadius: AppRadius.lg,
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),

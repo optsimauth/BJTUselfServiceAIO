@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../shared/theme/spacing.dart';
 
 /// 子页面左上角的返回按钮。桌面 / 网页端没有系统返回键，进到子页面后全靠它回去。
@@ -35,25 +36,35 @@ class PrimaryButton extends StatelessWidget {
     final button = FilledButton(
       onPressed: loading ? null : onPressed,
       style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(52),
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.lg),
+        minimumSize: const Size(0, 52),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.control),
       ),
-      child: loading
-          ? const SizedBox(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (loading) ...[
+            const SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 18),
-                  const SizedBox(width: 8),
-                ],
-                Text(label),
-              ],
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                semanticsLabel: '正在处理',
+              ),
             ),
+            const SizedBox(width: AppSpacing.sm),
+          ] else if (icon != null) ...[
+            Icon(icon, size: 18),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+          Flexible(
+            child: Text(loading ? '正在处理…' : label, textAlign: TextAlign.center),
+          ),
+        ],
+      ),
     );
     return expanded ? SizedBox(width: double.infinity, child: button) : button;
   }
