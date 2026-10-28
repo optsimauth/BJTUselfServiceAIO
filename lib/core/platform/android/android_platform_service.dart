@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
 import '../method_channel_platform_service.dart';
 import '../platform_service.dart';
 
@@ -46,8 +49,32 @@ class AndroidPlatformService extends MethodChannelPlatformService {
 
   @override
   Future<Directory> downloadsDirectory() async {
-    // ponytail: 公共下载目录要走原生（Environment / MediaStore），通道还没实现。
-    // 真接上时把这里换成 channel.invokeMethod('downloadsDirectory')。
+    // 公共 Download 目录只有原生侧拿得到（Environment / MediaStore）；
+    // 通道还没实现时会返回 null，继续往下退。
+    final native = await invokePlatform<String>('downloadsDirectory');
+    if (native != null && native.isNotEmpty) {
+      final directory = Directory(native);
+      try {
+        await directory.create(recursive: true);
+        return directory;
+      } catch (_) {
+        // 建不出来（分区/权限限制）就别停在死路上。
+      }
+    }
+
+    // 退一步用应用专属外部目录：Scoped Storage 下不需要任何权限，
+    // 路径也是文件管理器里能直接打开的真实路径。
+    try {
+      final external = await getExternalStorageDirectory();
+      if (external != null) {
+        final directory = Directory(p.join(external.path, 'Downloads'));
+        await directory.create(recursive: true);
+        return directory;
+      }
+    } catch (_) {
+      // 外部存储被卸载之类的情况，最后交给基类。
+    }
+
     return super.downloadsDirectory();
   }
 

@@ -32,6 +32,11 @@ abstract class MethodChannelPlatformService implements PlatformService {
     }
   }
 
+  /// 给子类用的通道入口：语义与 [_invoke] 一致（没实现就当没实现）。
+  @protected
+  Future<T?> invokePlatform<T>(String method, [Object? arguments]) =>
+      _invoke<T>(method, arguments);
+
   @override
   Future<Directory> appDataDirectory() async {
     final directory = await getApplicationSupportDirectory();
@@ -120,15 +125,39 @@ abstract class MethodChannelPlatformService implements PlatformService {
   @override
   Future<Map<String, String>> defaultRequestHeaders() async => const {};
 
-  /// 系统下载目录。桌面端没有系统 API，落回「文档/Downloads」。
+  /// 系统下载目录。
+  ///
+  /// 桌面端优先用系统真实目录（Windows `%USERPROFILE%\Downloads`、
+  /// macOS `~/Downloads`），这样设置页能显示具体路径，用户也真能在
+  /// 文件管理器里找到；拿不到（或移动端根本没有这个概念）时才退回
+  /// 「应用文档目录/Downloads」，保证目录一定可写。
   ///
   /// 暴露出来是因为上层要往里拼子目录（见 DownloadService）：设置里没选
   /// 目录时，也得知道往哪拼 app 那一层文件夹。
   @override
   Future<Directory> downloadsDirectory() async {
+    final system = await _systemDownloadsDirectory();
+    if (system != null) return system;
+
     final base = await getApplicationDocumentsDirectory();
-    final directory = Directory('${base.path}/Downloads');
+    final directory = Directory(p.join(base.path, 'Downloads'));
     await directory.create(recursive: true);
     return directory;
+  }
+
+  /// `getDownloadsDirectory()` 只在桌面端有实现，移动端会抛 UnsupportedError。
+  Future<Directory?> _systemDownloadsDirectory() async {
+    if (!(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      return null;
+    }
+    try {
+      final directory = await getDownloadsDirectory();
+      if (directory == null) return null;
+      await directory.create(recursive: true);
+      return directory;
+    } catch (_) {
+      // 权限、组策略、沙箱都可能让它失败；失败了就让调用方走降级目录。
+      return null;
+    }
   }
 }
