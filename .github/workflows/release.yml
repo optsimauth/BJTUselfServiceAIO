@@ -110,7 +110,7 @@ jobs:
           retention-days: 7
 
   windows:
-    name: Windows per-user msi
+    name: Windows x64 msi
     runs-on: windows-latest
     needs: meta
     steps:
@@ -125,7 +125,7 @@ jobs:
       - run: flutter pub get
       - run: flutter build windows --release --no-pub
 
-      - name: 安装 WiX 5
+      - name: 安装 WiX 5 与 UI 扩展
         run: |
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           # 固定 5.0.2：WiX 6/7 需要接受 OSMF 付费条款，5.x 不需要
@@ -134,6 +134,9 @@ jobs:
           $wix = Join-Path $env:USERPROFILE ".dotnet\tools\wix.exe"
           if (-not (Test-Path -LiteralPath $wix)) { throw "WiX 5.0.2 安装失败" }
           & $wix --version
+          # 安装向导（欢迎/许可协议/选择安装位置/进度/完成）由 UI 扩展提供
+          & $wix extension add -g WixToolset.UI.wixext/5.0.2
+          if ($LASTEXITCODE -ne 0) { throw "WiX UI 扩展安装失败" }
 
       - name: 生成 msi
         env:
@@ -143,7 +146,36 @@ jobs:
             -SourceDir "build/windows/x64/runner/Release" `
             -Version "$env:VERSION" `
             -Output "dist/$env:APP_NAME-$env:VERSION.msi" `
-            -IconPath "windows/runner/resources/app_icon.ico"
+            -IconPath "windows/runner/resources/app_icon.ico" `
+            -LicensePath "installer/license.txt"
+
+      - name: 校验 msi
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          $msi = "dist/$env:APP_NAME-$env:VERSION.msi"
+          if (-not (Test-Path -LiteralPath $msi)) { throw "没有生成 $msi" }
+          $size = [math]::Round((Get-Item -LiteralPath $msi).Length / 1MB, 1)
+          Write-Host "msi 大小：$size MB"
+
+          # 反编译回来检查安装向导页面与 per-machine/版本信息是否真的进了表
+          $dump = Join-Path $env:RUNNER_TEMP "msi-dump.wxs"
+          & wix msi decompile $msi -o $dump
+          if ($LASTEXITCODE -ne 0) { throw "msi 反编译失败，包可能已损坏" }
+          $xml = Get-Content -LiteralPath $dump -Raw
+
+          $expect = @{
+            'InstallDirDlg'    = '自选安装目录页'
+            'LicenseAgreementDlg' = '许可协议页'
+            'WIXUI_INSTALLDIR' = '安装目录绑定到 INSTALLFOLDER'
+            'ProgramFiles64Folder' = '默认装到 Program Files'
+            'Language="2052"'  = '简体中文界面'
+            'ARPPRODUCTICON'   = '应用和功能里的图标'
+          }
+          foreach ($k in $expect.Keys) {
+            if ($xml -notmatch [regex]::Escape($k)) { throw "msi 缺少 $($expect[$k])（$k）" }
+          }
+          Write-Host "msi 校验通过：$($expect.Count) 项"
 
       - uses: actions/upload-artifact@v4
         with:

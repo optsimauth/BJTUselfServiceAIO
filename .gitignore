@@ -77,3 +77,6 @@ lib/repomix-output.xml
 /android/keystore/
 *.jks
 *.keystore
+
+# 构建产物（CI 与本地产出的安装包）
+/dist/
