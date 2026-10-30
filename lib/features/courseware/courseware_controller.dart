@@ -168,6 +168,8 @@ class CoursewareController extends ChangeNotifier {
       _downloading.remove(file.identity);
       _downloaded[file.identity] = path;
       _roots = CoursewareTree.markDownloaded(_roots, {file.identity: path});
+      // 成功分支也必须通知：否则行上的转圈要等下一次下载或重进页面才停。
+      notifyListeners();
       return path;
     } catch (error) {
       if (_disposed) rethrow;
@@ -210,6 +212,7 @@ class CoursewareController extends ChangeNotifier {
       if (summary.failed > 0) {
         _lastError = '${summary.failed} 个文件没下成功';
       }
+      notifyListeners();
       return summary;
     } catch (error) {
       if (_disposed) rethrow;
@@ -229,6 +232,7 @@ class CoursewareController extends ChangeNotifier {
       final path = await _repository.downloadTeachingCalendar(courseNode);
       if (_disposed) return path;
       _downloading.remove(key);
+      notifyListeners();
       return path;
     } catch (error) {
       if (_disposed) rethrow;
