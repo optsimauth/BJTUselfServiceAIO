@@ -147,6 +147,10 @@ class ServiceLocator {
     final gradeLocalStore = GradeLocalStore(database.gradeDao);
     final examLocalStore = ExamLocalStore(database.examDao);
     final homeworkLocalStore = HomeworkLocalStore(database.homeworkDao);
+    // 作业详情（正文 + 附件）单独一张表：列表同步整行覆盖，详情只写自己那份。
+    final homeworkDetailLocalStore = HomeworkDetailLocalStore(
+      database.homeworkDetailDao,
+    );
 
     emailApi = EmailApi(requestManager);
 
@@ -188,6 +192,8 @@ class ServiceLocator {
         requestManager.invalidateSession();
         platformSession.invalidate();
         platformCourseRepository.invalidate();
+        // 作业详情缓存里是上一个账号能看到的内容，登出必须清掉。
+        locator.homeworkRepository.invalidateDetailCache();
         emailApi.invalidateSession();
         locator.gradeController.updateStudentId('');
         locator.emailController.dispose();
@@ -221,10 +227,10 @@ class ServiceLocator {
     final homeworkRepository = HomeworkRepository(
       api: HomeworkApi(requestManager),
       localStore: homeworkLocalStore,
+      detailStore: homeworkDetailLocalStore,
       courseRepository: platformCourseRepository,
       session: platformSession,
       downloadService: downloadService,
-      platformService: platformService,
     );
     final coursewareRepository = CoursewareRepository(
       api: CoursewareApi(requestManager),

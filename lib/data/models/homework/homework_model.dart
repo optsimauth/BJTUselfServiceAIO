@@ -39,6 +39,7 @@ class HomeworkDetail {
     this.content = '',
     this.attachments = const [],
     this.error = '',
+    this.fetchedAt,
   });
 
   /// 平台返回错误时的详情。正文为空，界面据此显示失败原因。
@@ -51,9 +52,34 @@ class HomeworkDetail {
   /// 非空表示这次取详情失败了（平台 `STATUS != 0`）。
   final String error;
 
+  /// 这份详情是什么时候从平台拉回来的。null = 还没落过本地。
+  ///
+  /// 缓存能不能直接用由它决定：过期就回源，别把半个月前的
+  /// 附件清单当成现在的。
+  final DateTime? fetchedAt;
+
   bool get isFailed => error.isNotEmpty;
 
   bool get hasAttachments => attachments.isNotEmpty;
+
+  /// 缓存还在有效期内吗。没有时间戳一律算过期。
+  bool isFresh(Duration ttl, {DateTime? now}) {
+    final at = fetchedAt;
+    if (at == null) return false;
+    return (now ?? DateTime.now()).difference(at) < ttl;
+  }
+
+  HomeworkDetail copyWith({
+    String? content,
+    List<HomeworkAttachment>? attachments,
+    String? error,
+    DateTime? fetchedAt,
+  }) => HomeworkDetail(
+    content: content ?? this.content,
+    attachments: attachments ?? this.attachments,
+    error: error ?? this.error,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
 }
 
 /// 作业。旧库 HomeworkEntity 字段一一对应。
@@ -99,7 +125,8 @@ class Homework {
   final int scoreId;
   final HomeworkType homeworkType;
 
-  Object get identity => '$courseName-$upId';
+  /// 本地身份：同一门课下 `upId` 唯一。同步比对、详情缓存都用它做键。
+  String get identity => '$courseName-$upId';
 
   /// 平台约定的「交了」的字面值。
   static const String submittedStatus = '已提交';

@@ -6,6 +6,7 @@ import '../../app/service_locator.dart';
 import '../../core/model/async_state.dart';
 import '../../data/models/homework/homework_model.dart';
 import '../../data/repositories/homework_repository.dart';
+import '../../services/file_picker/file_picker_service.dart';
 import '../../shared/theme/typography.dart';
 import '../../shared/widgets/async_view.dart';
 import '../../shared/widgets/buttons/app_buttons.dart';
@@ -14,6 +15,7 @@ import '../../shared/widgets/error_text.dart';
 import '../../shared/widgets/tinted_badge.dart';
 import 'homework_controller.dart';
 import 'homework_html_view.dart';
+import 'homework_submit_dialog.dart';
 import 'homework_timeline.dart';
 import '../../shared/theme/spacing.dart';
 import '../../shared/widgets/page_width.dart';
@@ -48,6 +50,9 @@ class _HomeworkPageState extends State<HomeworkPage> {
   Timer? _clock;
   late DateTime _now;
 
+  /// 选文件。真实的平台层只在有 ServiceScope 时才有，测试里注入别的入口。
+  Future<List<PickedFileInfo>> Function()? _pickFiles;
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +65,9 @@ class _HomeworkPageState extends State<HomeworkPage> {
     _ownsController = widget.controller == null && widget.repository != null;
     _controller.syncMessage.addListener(_showSyncMessage);
     if (_ownsController) _controller.refresh();
+    if (widget.controller == null && widget.repository == null) {
+      _pickFiles = () => ServiceScope.of(context).filePickerService.pickFiles();
+    }
     if (widget.now == null) {
       // 倒计时自己走：跨过截止点时「快截止」要立刻变成「已截止」。
       _clock = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -127,6 +135,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
                     now: _now,
                     onRefresh: _controller.refresh,
                     scrollController: _controller.listScrollController,
+                    pickFiles: _pickFiles,
                   ),
                 ),
               ),
@@ -164,12 +173,14 @@ class _HomeworkBody extends StatelessWidget {
     required this.now,
     required this.onRefresh,
     required this.scrollController,
+    this.pickFiles,
   });
 
   final HomeworkController controller;
   final DateTime now;
   final Future<void> Function() onRefresh;
   final ScrollController scrollController;
+  final Future<List<PickedFileInfo>> Function()? pickFiles;
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +219,7 @@ class _HomeworkBody extends StatelessWidget {
                   controller,
                   entry.homework,
                   now,
+                  pickFiles: pickFiles,
                 ),
               ),
           ],
@@ -732,31 +744,37 @@ Future<void> openHomeworkDetail(
   BuildContext context,
   HomeworkController controller,
   Homework homework,
-  DateTime now,
-) {
+  DateTime now, {
+  Future<List<PickedFileInfo>> Function()? pickFiles,
+}) {
   return showDialog<void>(
     context: context,
     builder: (_) => _HomeworkDetailDialog(
       controller: controller,
       homework: homework,
       now: now,
+      pickFiles: pickFiles,
     ),
   );
 }
 
 /// 作业详情弹窗：正文（HTML）+ 附件 + 提交。
 ///
-/// 弹窗自己管 loading / 失败 / 提交中三种状态，父页面不用跟着转。
+/// 正文**第一帧就有**：列表同步时已经把 `content` 落库了，这里先用它渲染，
+/// 详情接口退到后台补附件。以前是「整块转圈等网络」，看起来就像每次都在
+/// 重新加载。
 class _HomeworkDetailDialog extends StatefulWidget {
   const _HomeworkDetailDialog({
     required this.controller,
     required this.homework,
     required this.now,
+    this.pickFiles,
   });
 
   final HomeworkController controller;
   final Homework homework;
   final DateTime now;
+  final Future<List<PickedFileInfo>> Function()? pickFiles;
 
   @override
   State<_HomeworkDetailDialog> createState() => _HomeworkDetailDialogState();
@@ -771,13 +789,62 @@ class _HomeworkDetailDialogState extends State<_HomeworkDetailDialog> {
   static const double _heightRatio = 0.78;
   static const double _heightRatioLargeText = 0.94;
 
-  late Future<HomeworkDetail> _detail;
-  bool _submitting = false;
+  /// 正文。初值直接取本地那份，弹窗一出现就能读到字。
+  late String _content = widget.homework.content;
+
+  List<HomeworkAttachment> _attachments = const [];
+
+  /// 附件清单还没拿到（本地没缓存、网络也还在路上）。
+  bool _attachmentsLoading = true;
+
+  /// 详情接口失败的原因。正文照旧显示，只在附件栏说明。
+  String? _detailError;
 
   @override
   void initState() {
     super.initState();
-    _detail = widget.controller.detailOf(widget.homework);
+    _loadDetail();
+  }
+
+  /// 先用本地缓存铺满，再回源。
+  ///
+  /// 两步分开是为了让界面立刻有东西：`cachedDetailOf` 只读内存/数据库，
+  /// 网络失败也不影响已经显示出来的正文。
+  Future<void> _loadDetail() async {
+    final cached = await widget.controller.cachedDetailOf(widget.homework);
+    if (!mounted) return;
+    if (cached != null) {
+      setState(() {
+        if (cached.content.trim().isNotEmpty) _content = cached.content;
+        _attachments = cached.attachments;
+        _attachmentsLoading = false;
+        _detailError = null;
+      });
+    }
+
+    try {
+      final detail = await widget.controller.detailOf(widget.homework);
+      if (!mounted) return;
+      if (detail.isFailed) {
+        setState(() {
+          _attachmentsLoading = false;
+          _detailError = detail.error;
+        });
+        return;
+      }
+      setState(() {
+        if (detail.content.trim().isNotEmpty) _content = detail.content;
+        _attachments = detail.attachments;
+        _attachmentsLoading = false;
+        _detailError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _attachmentsLoading = false;
+        _detailError = errorText(error);
+      });
+    }
   }
 
   @override
@@ -813,16 +880,18 @@ class _HomeworkDetailDialogState extends State<_HomeworkDetailDialog> {
                   color: Theme.of(context).colorScheme.outlineVariant,
                 ),
                 Expanded(
-                  child: _DetailBody(
-                    future: _detail,
+                  child: _DetailContent(
+                    content: _content,
+                    attachments: _attachments,
+                    attachmentsLoading: _attachmentsLoading,
+                    error: _detailError,
                     homework: homework,
                     controller: widget.controller,
                   ),
                 ),
                 _SubmitBar(
                   homework: homework,
-                  submitting: _submitting,
-                  onSubmit: _submit,
+                  onSubmit: _openSubmit,
                 ),
               ],
             ),
@@ -840,32 +909,23 @@ class _HomeworkDetailDialogState extends State<_HomeworkDetailDialog> {
     return _heightRatio + (_heightRatioLargeText - _heightRatio) * extra;
   }
 
-  /// 提交完要重取详情：交上去之后正文和附件都会变。
-  ///
-  /// 这里必须用块体而不是 `() => _detail = ...`：赋值表达式返回的是
-  /// `detailOf` 的 Future，把它交给 `setState` 会撞上「setState 的回调
-  /// 返回了 Future」这条断言。
-  void _reload() {
-    setState(() {
-      _detail = widget.controller.detailOf(widget.homework);
-    });
-  }
-
-  Future<void> _submit() async {
-    setState(() => _submitting = true);
-    try {
-      await widget.controller.upload(widget.homework);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _submitting = false);
-      await AppDialog.error(context, error);
-      return;
-    }
-    if (!mounted) return;
-    setState(() => _submitting = false);
-    _reload();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('作业已提交')));
+  /// 打开提交弹窗（选文件 → 备注 → 提交），成功后退回列表。
+  Future<void> _openSubmit() async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final submitted = await showHomeworkSubmitDialog(
+      context,
+      homework: widget.homework,
+      controller: widget.controller,
+      pickFiles: widget.pickFiles,
+    );
+    if (!mounted || !submitted) return;
+    // 交完就退回列表：这份 homework 还是提交前的快照（徽章写着「未提交」），
+    // 留在弹窗里只会自相矛盾；列表那边已经重新同步过了。
+    navigator.pop();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('作业已提交')));
   }
 }
 
@@ -1001,54 +1061,11 @@ String _submitStateLabel(Homework homework) {
 }
 
 /// 详情正文。三种状态各自成一个小组件，父级只做 FutureBuilder。
-class _DetailBody extends StatelessWidget {
-  const _DetailBody({
-    required this.future,
-    required this.homework,
-    required this.controller,
-  });
-
-  final Future<HomeworkDetail> future;
-  final Homework homework;
-  final HomeworkController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<HomeworkDetail>(
-      future: future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          // 取详情失败也照旧显示正文：列表里那份 content 是先拿到了的。
-          // 和旧项目一致 —— 它把错误放在「附件」那栏，正文仍用 homework.content。
-          return _DetailContent(
-            content: homework.content,
-            attachments: const [],
-            error: errorText(snapshot.error!),
-            homework: homework,
-            controller: controller,
-          );
-        }
-        final detail = snapshot.data!;
-        // 平台的 STATUS!=0：附件拿不到，正文退回列表里那份。
-        return _DetailContent(
-          content: detail.isFailed ? homework.content : detail.content,
-          attachments: detail.isFailed ? const [] : detail.attachments,
-          error: detail.isFailed ? detail.error : null,
-          homework: homework,
-          controller: controller,
-        );
-      },
-    );
-  }
-}
-
 class _DetailContent extends StatelessWidget {
   const _DetailContent({
     required this.content,
     required this.attachments,
+    required this.attachmentsLoading,
     required this.error,
     required this.homework,
     required this.controller,
@@ -1070,6 +1087,9 @@ class _DetailContent extends StatelessWidget {
   final String content;
 
   final List<HomeworkAttachment> attachments;
+
+  /// 附件清单还在路上。正文不受影响，这一栏先说明「正在加载」。
+  final bool attachmentsLoading;
 
   /// 非空 = 附件没拿到，显示在「附件」栏里，正文照常渲染。
   final String? error;
@@ -1113,6 +1133,23 @@ class _DetailContent extends StatelessWidget {
                   '附件加载失败：$error',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: Theme.of(context).colorScheme.error),
+                )
+              else if (attachmentsLoading)
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      '正在加载附件…',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 )
               else if (attachments.isEmpty)
                 Text(
@@ -1229,14 +1266,9 @@ class _AttachmentTile extends StatelessWidget {
 }
 
 class _SubmitBar extends StatelessWidget {
-  const _SubmitBar({
-    required this.homework,
-    required this.submitting,
-    required this.onSubmit,
-  });
+  const _SubmitBar({required this.homework, required this.onSubmit});
 
   final Homework homework;
-  final bool submitting;
   final VoidCallback onSubmit;
 
   @override
@@ -1254,15 +1286,9 @@ class _SubmitBar extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
-          onPressed: submitting ? null : onSubmit,
-          icon: submitting
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.upload_file),
-          label: Text(submitting ? '提交中…' : label),
+          onPressed: onSubmit,
+          icon: const Icon(Icons.upload_file),
+          label: Text(label),
         ),
       ),
     );

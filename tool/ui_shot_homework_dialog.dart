@@ -44,17 +44,22 @@ class _FakeHomeworkRepository extends Fake implements HomeworkRepository {
   Stream<List<Homework>> watchAll() => Stream<List<Homework>>.value(const []);
 
   @override
-  Future<HomeworkDetail> fetchDetail(Homework homework) async =>
-      const HomeworkDetail(
-        content:
-            '<p>第三次上机：实现一个带缓存的 HTTP 客户端。</p>'
-            '<p>1. 支持 GET / POST；<br>2. 命中缓存直接返回；<br>3. 写一份简单的测试。</p>'
-            '<p>提交格式：PDF，命名「学号-姓名-第三次上机」。</p>',
-        attachments: [
-          HomeworkAttachment(id: 1, fileName: '第三次上机说明.pdf', sizeBytes: 482133),
-          HomeworkAttachment(id: 2, fileName: '实验模板.docx', sizeBytes: 30512),
-        ],
-      );
+  Future<HomeworkDetail?> cachedDetail(Homework homework) async => null;
+
+  @override
+  Future<HomeworkDetail> fetchDetail(
+    Homework homework, {
+    bool allowCache = true,
+  }) async => const HomeworkDetail(
+    content:
+        '<p>第三次上机：实现一个带缓存的 HTTP 客户端。</p>'
+        '<p>1. 支持 GET / POST；<br>2. 命中缓存直接返回；<br>3. 写一份简单的测试。</p>'
+        '<p>提交格式：PDF，命名「学号-姓名-第三次上机」。</p>',
+    attachments: [
+      HomeworkAttachment(id: 1, fileName: '第三次上机说明.pdf', sizeBytes: 482133),
+      HomeworkAttachment(id: 2, fileName: '实验模板.docx', sizeBytes: 30512),
+    ],
+  );
 }
 
 /// 详情拉取失败：正文照旧（列表里那份 content），附件栏说明原因。
@@ -63,8 +68,13 @@ class _FailingHomeworkRepository extends Fake implements HomeworkRepository {
   Stream<List<Homework>> watchAll() => Stream<List<Homework>>.value(const []);
 
   @override
-  Future<HomeworkDetail> fetchDetail(Homework homework) async =>
-      throw StateError('平台没有返回作业详情');
+  Future<HomeworkDetail?> cachedDetail(Homework homework) async => null;
+
+  @override
+  Future<HomeworkDetail> fetchDetail(
+    Homework homework, {
+    bool allowCache = true,
+  }) async => throw StateError('平台没有返回作业详情');
 }
 
 /// 详情里没有附件：附件栏走「暂无附件」空态。
@@ -74,10 +84,15 @@ class _EmptyAttachmentsHomeworkRepository extends Fake
   Stream<List<Homework>> watchAll() => Stream<List<Homework>>.value(const []);
 
   @override
-  Future<HomeworkDetail> fetchDetail(Homework homework) async =>
-      const HomeworkDetail(
-        content: '<p>第三次上机：实现一个带缓存的 HTTP 客户端。</p>',
-      );
+  Future<HomeworkDetail?> cachedDetail(Homework homework) async => null;
+
+  @override
+  Future<HomeworkDetail> fetchDetail(
+    Homework homework, {
+    bool allowCache = true,
+  }) async => const HomeworkDetail(
+    content: '<p>第三次上机：实现一个带缓存的 HTTP 客户端。</p>',
+  );
 }
 
 const _pending = Homework(

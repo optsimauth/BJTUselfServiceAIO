@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../../core/database/dao/course_dao.dart';
 import '../../core/database/dao/exam_dao.dart';
 import '../../core/database/dao/grade_dao.dart';
 import '../../core/database/dao/homework_dao.dart';
+import '../../core/database/dao/homework_detail_dao.dart';
 import '../../core/database/database.dart';
 import '../../core/state/data_sync_manager.dart';
 import '../models/course/course_model.dart';
@@ -216,4 +219,78 @@ class HomeworkLocalStore implements LocalEntityStore<Homework> {
         scoreId: Value(homework.scoreId),
         homeworkType: Value(homework.homeworkType.value),
       );
+}
+
+/// 作业详情（正文 + 附件）的本地缓存。
+///
+/// 详情跟作业列表是两个接口，也存两张表：列表同步整行覆盖，
+/// 详情只在真正拉到之后写一次。
+class HomeworkDetailLocalStore {
+  HomeworkDetailLocalStore(this._dao);
+
+  final HomeworkDetailDao _dao;
+
+  Future<HomeworkDetail?> read(String identity) async {
+    final row = await _dao.find(identity);
+    if (row == null) return null;
+    return HomeworkDetail(
+      content: row.content,
+      attachments: _decodeAttachments(row.attachments),
+      fetchedAt: row.fetchedAt == 0
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(row.fetchedAt),
+    );
+  }
+
+  /// 只缓存成功的那份：平台报错时写进去，下次打开就成了「永远是错误页」。
+  Future<void> write(String identity, HomeworkDetail detail) =>
+      _dao.upsertOne(
+        HomeworkDetailTableCompanion.insert(
+          identity: identity,
+          content: Value(detail.content),
+          attachments: Value(_encodeAttachments(detail.attachments)),
+          fetchedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        ),
+      );
+
+  Future<void> retainOnly(List<String> identities) =>
+      _dao.retainOnly(identities);
+
+  Future<void> remove(String identity) => _dao.remove(identity);
+
+  Future<void> clear() => _dao.clear();
+
+  static String _encodeAttachments(List<HomeworkAttachment> attachments) {
+    if (attachments.isEmpty) return '';
+    return jsonEncode([
+      for (final file in attachments)
+        {
+          'id': file.id,
+          'fileName': file.fileName,
+          'sizeBytes': file.sizeBytes,
+          'sourcePath': file.sourcePath,
+        },
+    ]);
+  }
+
+  /// 坏数据不该让整个弹窗报错 —— 认不出来就当没有附件。
+  static List<HomeworkAttachment> _decodeAttachments(String raw) {
+    if (raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return [
+        for (final item in decoded)
+          if (item is Map)
+            HomeworkAttachment(
+              id: (item['id'] as num?)?.toInt() ?? 0,
+              fileName: item['fileName']?.toString() ?? '',
+              sizeBytes: (item['sizeBytes'] as num?)?.toInt() ?? 0,
+              sourcePath: item['sourcePath']?.toString() ?? '',
+            ),
+      ];
+    } on FormatException {
+      return const [];
+    }
+  }
 }

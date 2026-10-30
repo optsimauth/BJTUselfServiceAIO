@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,6 +9,7 @@ import 'package:bjtuselfserviceaio/core/state/sync_result.dart';
 import 'package:bjtuselfserviceaio/data/local/local_stores.dart';
 import 'package:bjtuselfserviceaio/data/models/course/course_model.dart';
 import 'package:bjtuselfserviceaio/data/models/grade/grade_model.dart';
+import 'package:bjtuselfserviceaio/data/models/homework/homework_model.dart';
 
 Course _course(String id, {String place = 'A'}) => Course(
   courseId: id,
@@ -137,5 +139,66 @@ void main() {
       ),
     );
     expect(second.message, '成绩：变更 1');
+  });
+
+  group('作业详情缓存', () {
+    late HomeworkDetailLocalStore detailStore;
+
+    setUp(() => detailStore = HomeworkDetailLocalStore(db.homeworkDetailDao));
+
+    test('写进去能原样读回来，附件字段一个不少', () async {
+      await detailStore.write(
+        '大学物理-7',
+        const HomeworkDetail(
+          content: '<p>周五前交实验报告</p>',
+          attachments: [
+            HomeworkAttachment(
+              id: 3,
+              fileName: '第1章 习题.pdf',
+              sizeBytes: 2048,
+              sourcePath: '/a/b',
+            ),
+          ],
+        ),
+      );
+
+      final loaded = await detailStore.read('大学物理-7');
+      expect(loaded!.content, '<p>周五前交实验报告</p>');
+      expect(loaded.attachments.single.fileName, '第1章 习题.pdf');
+      expect(loaded.attachments.single.sizeBytes, 2048);
+      // 时间戳是写的时候自己打的，界面靠它判断缓存新不新鲜。
+      expect(loaded.fetchedAt, isNotNull);
+      expect(loaded.isFresh(const Duration(minutes: 5)), isTrue);
+    });
+
+    test('没缓存过返回 null，而不是一份空详情', () async {
+      expect(await detailStore.read('不存在的课-1'), isNull);
+    });
+
+    test('retainOnly 只留下还在列表里的作业', () async {
+      await detailStore.write('A-1', const HomeworkDetail(content: 'a'));
+      await detailStore.write('B-2', const HomeworkDetail(content: 'b'));
+
+      await detailStore.retainOnly(const ['A-1']);
+
+      expect(await detailStore.read('A-1'), isNotNull);
+      expect(await detailStore.read('B-2'), isNull);
+    });
+
+    test('附件 JSON 坏了当没有附件，不把弹窗带崩', () async {
+      await db
+          .into(db.homeworkDetailTable)
+          .insert(
+            HomeworkDetailTableCompanion.insert(
+              identity: '坏数据-1',
+              content: const Value('<p>x</p>'),
+              attachments: const Value('{不是数组'),
+            ),
+          );
+
+      final loaded = await detailStore.read('坏数据-1');
+      expect(loaded!.content, '<p>x</p>');
+      expect(loaded.attachments, isEmpty);
+    });
   });
 }

@@ -2435,6 +2435,333 @@ class HomeworkTableCompanion extends UpdateCompanion<HomeworkRow> {
   }
 }
 
+class $HomeworkDetailTableTable extends HomeworkDetailTable
+    with TableInfo<$HomeworkDetailTableTable, HomeworkDetailRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HomeworkDetailTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _identityMeta = const VerificationMeta(
+    'identity',
+  );
+  @override
+  late final GeneratedColumn<String> identity = GeneratedColumn<String>(
+    'identity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _attachmentsMeta = const VerificationMeta(
+    'attachments',
+  );
+  @override
+  late final GeneratedColumn<String> attachments = GeneratedColumn<String>(
+    'attachments',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<int> fetchedAt = GeneratedColumn<int>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    identity,
+    content,
+    attachments,
+    fetchedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'HomeworkDetailEntity';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HomeworkDetailRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('identity')) {
+      context.handle(
+        _identityMeta,
+        identity.isAcceptableOrUnknown(data['identity']!, _identityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_identityMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('attachments')) {
+      context.handle(
+        _attachmentsMeta,
+        attachments.isAcceptableOrUnknown(
+          data['attachments']!,
+          _attachmentsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {identity};
+  @override
+  HomeworkDetailRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HomeworkDetailRow(
+      identity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}identity'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      attachments: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachments'],
+      )!,
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $HomeworkDetailTableTable createAlias(String alias) {
+    return $HomeworkDetailTableTable(attachedDatabase, alias);
+  }
+}
+
+class HomeworkDetailRow extends DataClass
+    implements Insertable<HomeworkDetailRow> {
+  /// 作业身份，与 `Homework.identity` 一致（`courseName-upId`）。
+  final String identity;
+
+  /// 平台原文 HTML。
+  final String content;
+
+  /// 附件清单的 JSON，字段与 `HomeworkAttachment` 对齐。
+  final String attachments;
+
+  /// 最后一次成功拉取的时间（毫秒时间戳）。0 表示还没拉过。
+  final int fetchedAt;
+  const HomeworkDetailRow({
+    required this.identity,
+    required this.content,
+    required this.attachments,
+    required this.fetchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['identity'] = Variable<String>(identity);
+    map['content'] = Variable<String>(content);
+    map['attachments'] = Variable<String>(attachments);
+    map['fetched_at'] = Variable<int>(fetchedAt);
+    return map;
+  }
+
+  HomeworkDetailTableCompanion toCompanion(bool nullToAbsent) {
+    return HomeworkDetailTableCompanion(
+      identity: Value(identity),
+      content: Value(content),
+      attachments: Value(attachments),
+      fetchedAt: Value(fetchedAt),
+    );
+  }
+
+  factory HomeworkDetailRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HomeworkDetailRow(
+      identity: serializer.fromJson<String>(json['identity']),
+      content: serializer.fromJson<String>(json['content']),
+      attachments: serializer.fromJson<String>(json['attachments']),
+      fetchedAt: serializer.fromJson<int>(json['fetchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'identity': serializer.toJson<String>(identity),
+      'content': serializer.toJson<String>(content),
+      'attachments': serializer.toJson<String>(attachments),
+      'fetchedAt': serializer.toJson<int>(fetchedAt),
+    };
+  }
+
+  HomeworkDetailRow copyWith({
+    String? identity,
+    String? content,
+    String? attachments,
+    int? fetchedAt,
+  }) => HomeworkDetailRow(
+    identity: identity ?? this.identity,
+    content: content ?? this.content,
+    attachments: attachments ?? this.attachments,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
+  HomeworkDetailRow copyWithCompanion(HomeworkDetailTableCompanion data) {
+    return HomeworkDetailRow(
+      identity: data.identity.present ? data.identity.value : this.identity,
+      content: data.content.present ? data.content.value : this.content,
+      attachments: data.attachments.present
+          ? data.attachments.value
+          : this.attachments,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeworkDetailRow(')
+          ..write('identity: $identity, ')
+          ..write('content: $content, ')
+          ..write('attachments: $attachments, ')
+          ..write('fetchedAt: $fetchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(identity, content, attachments, fetchedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HomeworkDetailRow &&
+          other.identity == this.identity &&
+          other.content == this.content &&
+          other.attachments == this.attachments &&
+          other.fetchedAt == this.fetchedAt);
+}
+
+class HomeworkDetailTableCompanion extends UpdateCompanion<HomeworkDetailRow> {
+  final Value<String> identity;
+  final Value<String> content;
+  final Value<String> attachments;
+  final Value<int> fetchedAt;
+  final Value<int> rowid;
+  const HomeworkDetailTableCompanion({
+    this.identity = const Value.absent(),
+    this.content = const Value.absent(),
+    this.attachments = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HomeworkDetailTableCompanion.insert({
+    required String identity,
+    this.content = const Value.absent(),
+    this.attachments = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : identity = Value(identity);
+  static Insertable<HomeworkDetailRow> custom({
+    Expression<String>? identity,
+    Expression<String>? content,
+    Expression<String>? attachments,
+    Expression<int>? fetchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (identity != null) 'identity': identity,
+      if (content != null) 'content': content,
+      if (attachments != null) 'attachments': attachments,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HomeworkDetailTableCompanion copyWith({
+    Value<String>? identity,
+    Value<String>? content,
+    Value<String>? attachments,
+    Value<int>? fetchedAt,
+    Value<int>? rowid,
+  }) {
+    return HomeworkDetailTableCompanion(
+      identity: identity ?? this.identity,
+      content: content ?? this.content,
+      attachments: attachments ?? this.attachments,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (identity.present) {
+      map['identity'] = Variable<String>(identity.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (attachments.present) {
+      map['attachments'] = Variable<String>(attachments.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<int>(fetchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeworkDetailTableCompanion(')
+          ..write('identity: $identity, ')
+          ..write('content: $content, ')
+          ..write('attachments: $attachments, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2442,10 +2769,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $GradeTableTable gradeTable = $GradeTableTable(this);
   late final $ExamTableTable examTable = $ExamTableTable(this);
   late final $HomeworkTableTable homeworkTable = $HomeworkTableTable(this);
+  late final $HomeworkDetailTableTable homeworkDetailTable =
+      $HomeworkDetailTableTable(this);
   late final CourseDao courseDao = CourseDao(this as AppDatabase);
   late final GradeDao gradeDao = GradeDao(this as AppDatabase);
   late final ExamDao examDao = ExamDao(this as AppDatabase);
   late final HomeworkDao homeworkDao = HomeworkDao(this as AppDatabase);
+  late final HomeworkDetailDao homeworkDetailDao = HomeworkDetailDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2455,6 +2787,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     gradeTable,
     examTable,
     homeworkTable,
+    homeworkDetailTable,
   ];
 }
 
@@ -3667,6 +4000,216 @@ typedef $$HomeworkTableTableProcessedTableManager =
       HomeworkRow,
       PrefetchHooks Function()
     >;
+typedef $$HomeworkDetailTableTableCreateCompanionBuilder =
+    HomeworkDetailTableCompanion Function({
+      required String identity,
+      Value<String> content,
+      Value<String> attachments,
+      Value<int> fetchedAt,
+      Value<int> rowid,
+    });
+typedef $$HomeworkDetailTableTableUpdateCompanionBuilder =
+    HomeworkDetailTableCompanion Function({
+      Value<String> identity,
+      Value<String> content,
+      Value<String> attachments,
+      Value<int> fetchedAt,
+      Value<int> rowid,
+    });
+
+class $$HomeworkDetailTableTableFilterComposer
+    extends Composer<_$AppDatabase, $HomeworkDetailTableTable> {
+  $$HomeworkDetailTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get identity => $composableBuilder(
+    column: $table.identity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachments => $composableBuilder(
+    column: $table.attachments,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HomeworkDetailTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $HomeworkDetailTableTable> {
+  $$HomeworkDetailTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get identity => $composableBuilder(
+    column: $table.identity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachments => $composableBuilder(
+    column: $table.attachments,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HomeworkDetailTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HomeworkDetailTableTable> {
+  $$HomeworkDetailTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get identity =>
+      $composableBuilder(column: $table.identity, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get attachments => $composableBuilder(
+    column: $table.attachments,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+}
+
+class $$HomeworkDetailTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HomeworkDetailTableTable,
+          HomeworkDetailRow,
+          $$HomeworkDetailTableTableFilterComposer,
+          $$HomeworkDetailTableTableOrderingComposer,
+          $$HomeworkDetailTableTableAnnotationComposer,
+          $$HomeworkDetailTableTableCreateCompanionBuilder,
+          $$HomeworkDetailTableTableUpdateCompanionBuilder,
+          (
+            HomeworkDetailRow,
+            BaseReferences<
+              _$AppDatabase,
+              $HomeworkDetailTableTable,
+              HomeworkDetailRow
+            >,
+          ),
+          HomeworkDetailRow,
+          PrefetchHooks Function()
+        > {
+  $$HomeworkDetailTableTableTableManager(
+    _$AppDatabase db,
+    $HomeworkDetailTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HomeworkDetailTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HomeworkDetailTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$HomeworkDetailTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> identity = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String> attachments = const Value.absent(),
+                Value<int> fetchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HomeworkDetailTableCompanion(
+                identity: identity,
+                content: content,
+                attachments: attachments,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String identity,
+                Value<String> content = const Value.absent(),
+                Value<String> attachments = const Value.absent(),
+                Value<int> fetchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HomeworkDetailTableCompanion.insert(
+                identity: identity,
+                content: content,
+                attachments: attachments,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$HomeworkDetailTableTable, HomeworkDetailRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $HomeworkDetailTableTable,
+                    HomeworkDetailRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HomeworkDetailTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HomeworkDetailTableTable,
+      HomeworkDetailRow,
+      $$HomeworkDetailTableTableFilterComposer,
+      $$HomeworkDetailTableTableOrderingComposer,
+      $$HomeworkDetailTableTableAnnotationComposer,
+      $$HomeworkDetailTableTableCreateCompanionBuilder,
+      $$HomeworkDetailTableTableUpdateCompanionBuilder,
+      (
+        HomeworkDetailRow,
+        BaseReferences<
+          _$AppDatabase,
+          $HomeworkDetailTableTable,
+          HomeworkDetailRow
+        >,
+      ),
+      HomeworkDetailRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3679,4 +4222,6 @@ class $AppDatabaseManager {
       $$ExamTableTableTableManager(_db, _db.examTable);
   $$HomeworkTableTableTableManager get homeworkTable =>
       $$HomeworkTableTableTableManager(_db, _db.homeworkTable);
+  $$HomeworkDetailTableTableTableManager get homeworkDetailTable =>
+      $$HomeworkDetailTableTableTableManager(_db, _db.homeworkDetailTable);
 }

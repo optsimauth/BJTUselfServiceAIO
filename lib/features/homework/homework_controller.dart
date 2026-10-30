@@ -148,16 +148,34 @@ class HomeworkController extends ChangeNotifier {
   }
 
   /// 交作业。成功后再同步一次，让列表里的「已提交」立刻变过来。
-  Future<String> upload(Homework homework, {String content = ''}) async {
-    final receipt = await _repository.upload(homework, content: content);
+  ///
+  /// 文件是页面选好传进来的：[upload] 只管上传，不弹系统对话框。
+  Future<String> upload(
+    Homework homework, {
+    required List<String> filePaths,
+    String content = '',
+  }) async {
+    final receipt = await _repository.upload(
+      homework,
+      filePaths: filePaths,
+      content: content,
+    );
     if (!_disposed) {
       await refresh();
     }
     return receipt;
   }
 
-  Future<HomeworkDetail> detailOf(Homework homework) =>
-      _repository.fetchDetail(homework);
+  /// 本地已有的详情，没有就是 null —— 弹窗用它先把正文铺上。
+  Future<HomeworkDetail?> cachedDetailOf(Homework homework) =>
+      _repository.cachedDetail(homework);
+
+  /// 取详情。默认吃缓存（有效的缓存直接返回，不占网络），
+  /// 传 `allowCache: false` 就是强制回源（刚交完作业要看最新状态）。
+  Future<HomeworkDetail> detailOf(
+    Homework homework, {
+    bool allowCache = true,
+  }) => _repository.fetchDetail(homework, allowCache: allowCache);
 
   Future<String> downloadAttachment(Homework note, HomeworkAttachment file) =>
       _repository.downloadAttachment(note, file);

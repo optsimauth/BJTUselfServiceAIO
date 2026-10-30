@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -108,6 +110,17 @@ void main() {
       expect(find.text('请于周五前提交实验报告'), findsOneWidget);
       expect(find.textContaining('附件加载失败'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('详情还在路上：本地正文先渲染出来，不等网络', (tester) async {
+      await _pumpLauncher(tester, repository: _SlowHomeworkRepository());
+      await tester.tap(find.text('打开'));
+      // 只推一帧：详情接口这一支永远不返回，能读到正文就说明没有等它。
+      await tester.pump();
+
+      expect(find.text('请于周五前提交实验报告'), findsOneWidget);
+      // 附件那一栏单独说明自己还在加载，不该把正文一起挡住。
+      expect(find.text('正在加载附件…'), findsOneWidget);
     });
 
     testWidgets('窄屏 + 2 倍字号：弹窗不溢出', (tester) async {
@@ -241,8 +254,13 @@ class _FakeHomeworkRepository extends Fake implements HomeworkRepository {
   ]);
 
   @override
-  Future<HomeworkDetail> fetchDetail(Homework homework) async =>
-      const HomeworkDetail(content: '<p>请于周五前提交实验报告</p>');
+  Future<HomeworkDetail?> cachedDetail(Homework homework) async => null;
+
+  @override
+  Future<HomeworkDetail> fetchDetail(
+    Homework homework, {
+    bool allowCache = true,
+  }) async => const HomeworkDetail(content: '<p>请于周五前提交实验报告</p>');
 }
 
 class _FailingHomeworkRepository extends Fake implements HomeworkRepository {
@@ -250,6 +268,26 @@ class _FailingHomeworkRepository extends Fake implements HomeworkRepository {
   Stream<List<Homework>> watchAll() => Stream<List<Homework>>.value(const []);
 
   @override
-  Future<HomeworkDetail> fetchDetail(Homework homework) async =>
-      throw StateError('平台没有返回作业详情');
+  Future<HomeworkDetail?> cachedDetail(Homework homework) async => null;
+
+  @override
+  Future<HomeworkDetail> fetchDetail(
+    Homework homework, {
+    bool allowCache = true,
+  }) async => throw StateError('平台没有返回作业详情');
+}
+
+/// 详情接口永远不返回：用来验证「正文不等网络」。
+class _SlowHomeworkRepository extends Fake implements HomeworkRepository {
+  @override
+  Stream<List<Homework>> watchAll() => Stream<List<Homework>>.value(const []);
+
+  @override
+  Future<HomeworkDetail?> cachedDetail(Homework homework) async => null;
+
+  @override
+  Future<HomeworkDetail> fetchDetail(
+    Homework homework, {
+    bool allowCache = true,
+  }) => Completer<HomeworkDetail>().future;
 }
